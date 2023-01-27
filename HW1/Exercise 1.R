@@ -37,7 +37,7 @@ olympics_female<-olympics_top20 %>%
   filter(sex =="F", sport=='Athletics')
 
 #95th percent of female height across all event
-quantile(olympics_top20$height, probs=0.95)
+quantile(olympics_female$height, probs=0.95)
 
 #2_B
 

@@ -35,13 +35,16 @@ AVG_Delay <- aggregate(DepDelay ~ AirTime, ABIA, mean)
 
 ```{r airtime and delay, echo=FALSE}
 
-ggplot(AVG_Delay, aes(x=AirTime, y=DepDelay))+
+air_delay <- ggplot(AVG_Delay, aes(x=AirTime, y=DepDelay))+
   geom_line()+
   ggtitle("Average Depature Delay based on Air Time")+
-  labs(y= "Depature Delay (minutes)", x = "Air Time (minutes)")
+  labs(y= "Depature Delay (minutes)", x = "Air Time (minutes)",
+       caption = 'Figure 1: Average Time of Depature Delay Compared to Air Time')
+
+air_delay + theme(plot.caption = element_text(hjust = 0.5))
 ```
 
-The graph shows that average time of departure delays are similar to each other and slightly above 0 when the time of flight is between 50 to 200 minutes. When it exceeds 200 minutes, the average length of delay became larger and more volatile. When the air time is 281 minutes, the average departure delay is 413 minutes. 
+The graph shows that average time of departure delays are similar to each other and slightly above 0 when the time of flight is between 50 to 200 minutes. When it exceeds 200 minutes, the average length of delay became larger and more volatile. When the air time is 281 minutes, the average departure delay is 413 minutes.
 
 # 2) Wrangling the Olympics
 
@@ -50,22 +53,22 @@ olympics_top20=read.csv("../data/olympics_top20.csv")
 
 ```
 
+## A) What is the 95th percentile of heights for female competitors across all Athletics events (i.e., track and field)? Note that `sport` is the broad sport (e.g. Athletics) whereas `event` is the specific event (e.g. 100 meter sprint).
 
-## A)  What is the 95th percentile of heights for female competitors across all Athletics events (i.e., track and field)? Note that `sport` is the broad sport (e.g. Athletics) whereas `event` is the specific event (e.g. 100 meter sprint).\
 ```{r data processing and table1, echo=FALSE, results='asis'}
 
 olympics_female<-olympics_top20 %>%
   filter(sex =="F", sport=='Athletics') # filter female athletics
 
-df <- data.frame(quantile = '95%', height = quantile(olympics_top20$height, probs=0.95), stringsAsFactors=FALSE)
+df <- data.frame(quantile = '95%', height = quantile(olympics_female$height, probs=0.95), stringsAsFactors=FALSE)
 
 kable(df, caption = '95% heights for female competitors')
 
 ```
+The 95th percentile of heights for female competitors across all Athletics events is 183cm.
 
+## B) Which single women's `event` had the greatest variability in competitor's heights across the entire history of the Olympics, as measured by the standard deviation?
 
-
-## B)  Which single women's `event` had the greatest variability in competitor's heights across the entire history of the Olympics, as measured by the standard deviation?\
 ```{r table2, echo=FALSE}
 
 #Filter by female
@@ -85,9 +88,10 @@ res5 <- data.frame(head(res[order(res$height_std_dev, decreasing = TRUE),]))
 kable(res5, caption = 'Top 5 Female Events that Have the Greatest Variability in Height')
 
 ```
-The Rowing Women’s Coxed Fours had the greatest variability in competitor's heights across the entire history of the Olympics, as measured by the standard deviation. 
 
-## C)  How has the average age of Olympic swimmers changed over time? Does the trend look different for male swimmers relative to female swimmers? Create a data frame that can allow you to visualize these trends over time, then plot the data with a line graph with separate lines for male and female competitors. Give the plot an informative caption answering the two questions just posed.
+The Rowing Women's Coxed Fours had the greatest variability in competitor's heights across the entire history of the Olympics, as measured by the standard deviation of 10.865490.
+
+## C) How has the average age of Olympic swimmers changed over time? Does the trend look different for male swimmers relative to female swimmers? 
 
 ```{r age_graph, echo=FALSE}
 olympics_swimmer <- olympics_top20 %>%
@@ -103,12 +107,14 @@ AVG_Age_Gender <- aggregate(age ~ year + sex, olympics_swimmer, mean)
 ggplot()+
   geom_line(data = AVG_Age_Swimmer, aes(x=year, y=age))+
   geom_smooth(span = 1)+
-  geom_line(data=AVG_Age_Gender, aes(x=year, y=age, color = sex))
+  geom_line(data=AVG_Age_Gender, aes(x=year, y=age, color = sex))+
+  labs(title="Average Age of Olympic Swimmers Over Time Based on sex")
 
 ```
-
+The average age of Olympic swimmers decreased after 1924, when female swimmers joined Olympic for the first time. Before 1924, there was only male Olympic swimmers. From 1950 to 2008, the average age shows an increasing trend, with a gap between 2-3 years old. The age of male swimmers is higher than female, except for 2000, when female swimmer's average age spiked and overlapped with male swimmer's average age.  
 
 # 3) K-nearest neighbors: cars
+
 The data in [sclass.csv](../data/sclass.csv) contains data on over 29,000 Mercedes S Class vehicles---essentially every such car in this class that was advertised on the secondary automobile market during 2014. For websites like Cars.com or Truecar that aim to provide market-based pricing information to consumers, the Mercedes S class is a notoriously difficult case. There is a huge range of sub-models that are all labeled "S Class,"" from large luxury sedans to high-performance sports cars; one sub-category of S class has even served as the safety car in Formula 1 Races. Moreover, individual submodels involve cars with many different features. This extreme diversity---unusual for a single model of car---makes it difficult to provide accurate pricing predictions to consumers.
 
 Use K-nearest neighbors to build a predictive model for price, given mileage, separately for each of two trim levels: 350 and 65 AMG. That is, Treating the 350's and the 65 AMG's as two separate data sets.
@@ -142,7 +148,9 @@ k_grid = c(2, 4, 6, 8, 10, 15, 20, 25, 30, 35, 40, 45,
 ```
 
 ## Trim 350
+
 ### KNN Test Plot
+
 ```{r trim350 knn plot, echo=FALSE, warning=FALSE}
 cv_grid350 = foreach(k = k_grid, .combine='rbind') %dopar% {
   # map the model-fitting function over the training sets
@@ -160,6 +168,7 @@ ggplot(cv_grid350) +
 ```
 
 ### Trim 350 Prediction Plot
+
 ```{r trim350 prediction, echo=FALSE, results='hide', message=FALSE, warning=FALSE}
 # knn to 350
 knn15 = knnreg(price ~ mileage, data=trim350_train, k=30)
@@ -179,6 +188,7 @@ p_test + geom_line(aes(x = mileage, y = Price_pred), color='red', size=1.5)
 ## Trim 65 AMG
 
 ### Trim 65 AMG KNN Test Plot
+
 ```{r TrimAMG knn plot, echo=FALSE, warning=FALSE}
 cv_gridAMG = foreach(k = k_grid, .combine='rbind') %dopar% {
   # map the model-fitting function over the training sets
@@ -196,6 +206,7 @@ ggplot(cv_gridAMG) +
 ```
 
 ### Trim 65 AMG Prediction Plot
+
 ```{r trimAMG Prediction Plot, echo=FALSE, results='hide', message=FALSE, warning=FALSE}
 # knn to AMG
 knn30 = knnreg(price ~ mileage, data=trim350_train, k=30)
@@ -211,4 +222,3 @@ p_test = ggplot(data = trimAMG_test) +
 # add the predictions
 p_test + geom_line(aes(x = mileage, y = Price_pred), color='red', size=1.5)
 ```
-
