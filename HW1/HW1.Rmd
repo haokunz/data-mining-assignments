@@ -166,17 +166,18 @@ ggplot(cv_grid350) +
   geom_errorbar(aes(x=k, ymin = err-std_err, ymax = err+std_err)) + 
   scale_x_log10()
 ```
+For Trim 350, K=32 is a ideal selection.
 
 ### Trim 350 Prediction Plot
 
 ```{r trim350 prediction, echo=FALSE, results='hide', message=FALSE, warning=FALSE}
 # knn to 350
-knn15 = knnreg(price ~ mileage, data=trim350_train, k=30)
-modelr::rmse(knn15, trim350_test)
+knn32 = knnreg(price ~ mileage, data=trim350_train, k=32)
+modelr::rmse(knn32, trim350_test)
 
 # attach the predictions to the test data frame
 trim350_test = trim350_test %>%
-  mutate(Price_pred = predict(knn15, trim350_test))
+  mutate(Price_pred = predict(knn32, trim350_test))
 
 p_test = ggplot(data = trim350_test) + 
   geom_point(mapping = aes(x = mileage, y = price), alpha=0.2)
@@ -205,11 +206,13 @@ ggplot(cv_gridAMG) +
   scale_x_log10()
 ```
 
+For Trim 65 AMG, k=30 is an ideal selection with the lowest RMSE.
+
 ### Trim 65 AMG Prediction Plot
 
 ```{r trimAMG Prediction Plot, echo=FALSE, results='hide', message=FALSE, warning=FALSE}
 # knn to AMG
-knn30 = knnreg(price ~ mileage, data=trim350_train, k=30)
+knn30 = knnreg(price ~ mileage, data=trimAMG_train, k=30)
 modelr::rmse(knn30, trimAMG_test)
 
 # attach the predictions to the test data frame
@@ -222,3 +225,5 @@ p_test = ggplot(data = trimAMG_test) +
 # add the predictions
 p_test + geom_line(aes(x = mileage, y = Price_pred), color='red', size=1.5)
 ```
+
+There are 292 samples of Trim 65 AMG and 416 samples of Trim 350. By eyeballing, Trim 350 has the most optimal trade off between bias and variance at k=32. Trim 65 AMG has the most optimal trade off at k=30.
