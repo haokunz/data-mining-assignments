@@ -1,6 +1,6 @@
 ---
 title: "ECO 395M: Exercises 1"
-author: "Haokun Zhang"
+author: "Haokun Zhang, Jyun-Yu Cheng and Lu Zhang"
 date: '2023-01-25'
 output: 
   pdf_document: default
@@ -19,7 +19,9 @@ library(parallel)
 library(foreach)
 library(stargazer)
 library(knitr)
-
+library(lubridate)
+library(RCurl)
+library(caret)
 ```
 
 # 1) Data visualization: flights at ABIA
@@ -37,14 +39,57 @@ AVG_Delay <- aggregate(DepDelay ~ AirTime, ABIA, mean)
 
 air_delay <- ggplot(AVG_Delay, aes(x=AirTime, y=DepDelay))+
   geom_line()+
-  ggtitle("Average Depature Delay based on Air Time")+
-  labs(y= "Depature Delay (minutes)", x = "Air Time (minutes)",
+  ggtitle("Graph1: Average Depature Delay based on Air Time")+
+  labs(y= "Average Depature Delay (minutes)", x = "Air Time (minutes)",
        caption = 'Figure 1: Average Time of Depature Delay Compared to Air Time')
 
 air_delay + theme(plot.caption = element_text(hjust = 0.5))
 ```
 
 The graph shows that average time of departure delays are similar to each other and slightly above 0 when the time of flight is between 50 to 200 minutes. When it exceeds 200 minutes, the average length of delay became larger and more volatile. When the air time is 281 minutes, the average departure delay is 413 minutes.
+
+```{r Jonathan graph1, echo=FALSE}
+AverageDayDelay <- ABIA %>% 
+  select(Year, Month, DayofMonth, ArrDelay, DepDelay, ) %>%
+  mutate(departureday = make_datetime(Year, Month, DayofMonth)) 
+
+delay <-  AverageDayDelay %>%
+  group_by(departureday) %>%
+  summarise(mean_dep_delay = mean(DepDelay, na.rm = TRUE))
+
+average_departure_delay_time_over_2008 <- ggplot(data = delay, aes(x = departureday, y = mean_dep_delay)) +
+  geom_line()+
+  labs(title = "Graph2: Average Departure Delay Time Over 2008 ")+
+  labs(x = 'Date', y = 'Average Depature Delay (minutes)')
+
+plot(average_departure_delay_time_over_2008)
+
+```
+We can see the result that in most time, the delay time fluctulate between 0 and 20, and around Oct, the delay time is relatively small.
+
+```{r Jonathan graph2, echo=FALSE}
+AverageSpecificTimeDelay <- ABIA %>%
+  select(Year, Month, DayofMonth, CRSDepTime, ArrDelay, DepDelay) %>%
+  mutate(departureday = make_datetime(Year, Month, DayofMonth, CRSDepTime %/% 100, CRSDepTime %% 100)) %>%
+  mutate(CRSdeparttime = format(departureday, format = "%H"))
+
+
+delayoneday = AverageSpecificTimeDelay %>%
+  group_by(CRSdeparttime) %>%
+  summarise(mean_dep_oneday = mean(DepDelay, na.rm = TRUE))
+
+
+
+delay_day <- ggplot(delayoneday) +
+  geom_line(aes(x = CRSdeparttime, y = mean_dep_oneday, group =1)) +
+  labs(title = "Graph3: Average Departure Delay Time Over One Day(Measured by Hours) ")+
+  labs(x = 'Time', y = 'Average Depature Delay (minutes)')
+
+plot(delay_day)
+
+```
+We can find from 6am, the average delay time is increased in general, and due to schedule arrangement, there is no flight delarture between 00 and 06.
+So we give a suggestion: try to catch earlier flight rather than later flight.
 
 # 2) Wrangling the Olympics
 
