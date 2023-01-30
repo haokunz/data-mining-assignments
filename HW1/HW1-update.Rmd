@@ -1,6 +1,6 @@
 ---
 title: "ECO 395M: Exercises 1"
-author: "Haokun Zhang, Jyun-Yu Cheng and Lu Zhang"
+author: "Haokun Zhang (hz7297), Jyun-Yu Cheng (jc95272) and Lu Zhang (lz7445)"
 date: '2023-01-25'
 output: 
   pdf_document: default
