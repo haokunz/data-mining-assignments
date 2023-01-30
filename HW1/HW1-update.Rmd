@@ -11,7 +11,6 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 library(ggplot2)
 library(tidyverse)
-#library(plyr)
 library(rsample)  # for creating train/test splits
 library(caret)
 library(modelr)
@@ -103,6 +102,8 @@ str(flights)
 
 summary(flights$DepTime)
 
+#From 0AM-5AM,there are fewer flights and longer delays during this time period.
+
 # select data that do not have Na in both Departure time and departure delay
 departure_index <- !(is.na(flights$DepTime) | (is.na(flights$DepDelay)))
 departure_index
@@ -121,8 +122,8 @@ plot(dflights$DepTime, dflights$DepDelay, main = "Graph 4: Departure time vs. De
 
 ```
 
-The best time of day to fly to minimize the delays will be 5-8 AM, and the average delay time is less than 10 minutes. For 8-10 AM, 
-the average delay time is still less than 20 minutes.
+From 0AM-5AM,there are fewer flights and longer delays during this time period. The best time of day to fly to minimize the delays will be 5-8 AM, and the average delay time is less than 10 minutes. For 8-10 AM, the average delay time is still less than 20 minutes.
+
 
 ``` {r luna graph2, echo=FALSE, results='hide', message=FALSE}
 
