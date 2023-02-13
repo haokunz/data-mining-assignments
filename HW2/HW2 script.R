@@ -38,7 +38,7 @@ lm3 = lm(price ~ (. - pctCollege - sewer - waterfront - landValue - newConstruct
 #hand build a new model
 lm4 = lm(price ~ . - pctCollege - sewer - waterfront - fuel - landValue -livingArea - newConstruction -fireplaces +livingArea:centralAir +bathrooms:heating +heating:fuel, data=saratoga_train)
 
-summary(lm2)
+summary(lm4)
 
 coef(lm1) %>% round(0)
 coef(lm2) %>% round(0)
@@ -54,3 +54,4 @@ rmse(lm4, saratoga_test)
 
 # Can you hand-build a model that improves on all three?
 # Remember feature engineering, and remember not just to rely on a single train/test split
+
