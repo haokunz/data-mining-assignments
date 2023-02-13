@@ -10,7 +10,7 @@ library(modelr)
 library(rsample)
 library(mosaic)
 data(SaratogaHouses)
-#SaratogaHouses$livingArea2 <- SaratogaHouses$livingArea^2
+
 SaratogaHouses$loglivingArea <- log(SaratogaHouses$livingArea)
 #SaratogaHouses$logprice <- log(SaratogaHouses$price)
 
@@ -32,11 +32,11 @@ saratoga_test = testing(saratoga_split)
 # the dot (.) means "all variables not named"
 # the minus (-) means "exclude this variable"
 lm1 = lm(price ~ lotSize + bedrooms + bathrooms, data=saratoga_train)
-lm2 = lm(price ~ . - pctCollege - sewer - waterfront - landValue - newConstruction -loglivingArea, data=saratoga_train)
+lm2 = lm(price ~ . - pctCollege - sewer - waterfront - landValue - newConstruction, data=saratoga_train)
 lm3 = lm(price ~ (. - pctCollege - sewer - waterfront - landValue - newConstruction)^2, data=saratoga_train)
 
 #hand build a new model
-lm4 = lm(price ~ . - pctCollege - sewer - waterfront - fuel - landValue -livingArea - newConstruction -fireplaces +livingArea:centralAir +bathrooms:heating +heating:fuel, data=saratoga_train)
+lm4 = lm(price ~ . - pctCollege - sewer - waterfront - fuel -livingArea -landValue +poly(landValue, 2) +poly(age, 2) +livingArea:centralAir +bathrooms:heating, data=saratoga_train)
 
 summary(lm4)
 
@@ -54,4 +54,15 @@ rmse(lm4, saratoga_test)
 
 # Can you hand-build a model that improves on all three?
 # Remember feature engineering, and remember not just to rely on a single train/test split
+
+## build a knn model
+
+# k-value cross validation
+k_folds = 5
+
+saratoga_folds = crossv_kfold(SaratogaHouses, k=k_folds)
+
+k_grid = c(2, 4, 6, 8, 10, 15, 20, 25, 30, 35, 40, 45,
+           50, 60, 70, 80, 90, 100, 125, 150, 175, 200, 250, 300)
+
 
