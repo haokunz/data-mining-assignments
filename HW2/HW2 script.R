@@ -31,29 +31,27 @@ saratoga_test = testing(saratoga_split)
 # The command below yields exactly the same model.
 # the dot (.) means "all variables not named"
 # the minus (-) means "exclude this variable"
-lm1 = lm(price ~ lotSize + bedrooms + bathrooms, data=saratoga_train)
+
 lm2 = lm(price ~ . - pctCollege - sewer - waterfront - landValue - newConstruction, data=saratoga_train)
 lm3 = lm(price ~ (. - pctCollege - sewer - waterfront - landValue - newConstruction)^2, data=saratoga_train)
 
 #hand build a new model
-lm4 = lm(price ~ . - pctCollege - sewer - waterfront - fuel -livingArea -landValue +poly(landValue, 2) +poly(age, 2) +livingArea:centralAir +bathrooms:heating, data=saratoga_train)
+lm4 = lm(price ~ . - pctCollege - sewer - fuel -fireplaces -livingArea -landValue +poly(landValue, 2) +livingArea:centralAir +bathrooms:heating, data=saratoga_train)
 
+#summarize and test the model's aic and bic
 summary(lm4)
+broom::glance(lm4)
 
-coef(lm1) %>% round(0)
 coef(lm2) %>% round(0)
 coef(lm3) %>% round(0)
 coef(lm4) %>% round(0)
 
 # Predictions out of sample
 # Root mean squared error
-rmse(lm1, saratoga_test)
+
 rmse(lm2, saratoga_test)
 rmse(lm3, saratoga_test)
 rmse(lm4, saratoga_test)
-
-# Can you hand-build a model that improves on all three?
-# Remember feature engineering, and remember not just to rely on a single train/test split
 
 ## build a knn model
 
