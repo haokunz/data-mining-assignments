@@ -1,0 +1,174 @@
+# Exercise2
+# Question 3: Children and hotel reservations
+
+library(tidyverse)
+library(ggplot2)
+library(mosaic)
+library(rsample)
+library(parallel)
+library(foreach)
+library(gamlr)
+library(modelr)
+
+# Goal: Build a predictive model for whether a hotel booking will have children on it 
+# How : Build 3 model : baseline1, baseline2 and the best linear model we can build
+# Compare the out-of-sample performance of 3 models, then choose the best one.
+
+## Pre-processing
+# (1) Read the data
+hotels_dev = read.csv("https://raw.githubusercontent.com/jgscott/ECO395M/master/data/hotels_dev.csv")
+hotels_val = read.csv("https://raw.githubusercontent.com/jgscott/ECO395M/master/data/hotels_val.csv")
+hotels_dev = hotels_dev %>% filter(reserved_room_type != "L") 
+
+# (2) See the data
+head(hotels_dev)
+head(hotels_val)
+
+ggplot(data = hotels_dev) +
+  geom_histogram(aes(x=children), binwidth=0.1,color = "red" )
+## Because histogram is one-division, we only need to set the x axis
+
+# (3) Split the data to training/testing set
+hotels_dev_split = initial_split(hotels_dev, prop = 0.7)
+hotels_dev_train = training(hotels_dev_split)
+hotels_dev_test = testing(hotels_dev_split)
+
+
+## Model building
+## (1) Build the Models
+
+### Model1: only uses the market_segment, adults, customer_type, and is_repeated_guest variables as features
+baseline1 = glm(children ~ market_segment + adults + customer_type + is_repeated_guest,
+                     data = hotels_dev_train, family = "binomial")
+
+### Model2: uses all the possible predictors except the arrival_date variable
+baseline2 = glm(children ~ . - arrival_date , data = hotels_dev_train, family = "binomial")
+
+### Model3: build the best model - feature engineering by LASSO 
+# Use LASSO to find main effects + interaction by eyeballing
+hotels_lasso_x_main = model.matrix(children ~  (.-1-arrival_date), data=hotels_dev_train)
+hotels_lasso_x_itac = model.matrix(children ~  (.-1-arrival_date)^2, data=hotels_dev_train)
+hotels_lasso_y = hotels_dev_train$children
+## "$" extract a specific part of a data object
+
+#//see https://cran.r-project.org/web/packages/gamlr/gamlr.pdf to see more
+hotels_lasso_main = cv.gamlr(hotels_lasso_x_main, hotels_lasso_y, nfold=10, verb=TRUE, family="binomial")
+hotels_lasso_itac = cv.gamlr(hotels_lasso_x_itac, hotels_lasso_y, nfold=10, verb=TRUE, family="binomial")
+#### extract strong single covariates
+coef(hotels_lasso_main, select='min') #// rule out 'deposit_type' by eyeballing
+#### extract strong interactions
+strong_interaction_name = coef(hotels_lasso_itac, select = 'min')@Dimnames[1] %>% as.data.frame() 
+strong_interaction_name = strong_interaction_name[coef(hotels_lasso_itac, select = 'min')@i,] 
+strong_interaction_beta = coef(hotels_lasso_itac, select = 'min')@x[-1]
+coef_lasso = cbind(strong_interaction_name, strong_interaction_beta) %>% # transform matrix to data frame
+  as.data.frame() %>%
+  mutate(abs_beta = abs(as.numeric(strong_interaction_beta))) 
+coef_lasso %>% # filter in strong interaction
+  filter(!(strong_interaction_name %in% colnames(hotels_dev))) %>%
+  arrange(desc(abs_beta)) %>%
+  head(30) 
+#// pick (meal:reserved_room_type, reserved_room_type:assigned_room_type, hotel:reserved_room_type, market_segment:reserved_room_type,
+#// meal:is_repeated_guest, adults:previous_bookings_not_canceled, meal:previous_bookings_not_canceled, market_segment:customer_type,
+#// is_repeated_guest:assigned_room_type, assigned_room_type:required_car_parking_spaces) by eyeballing
+lasso_selected_testversion = glm(children ~ (.-arrival_date-deposit_type) + meal:reserved_room_type+ reserved_room_type:assigned_room_type+
+                           hotel:reserved_room_type+ market_segment:reserved_room_type+meal:is_repeated_guest+ 
+                           adults:previous_bookings_not_canceled+ meal:previous_bookings_not_canceled+ market_segment:customer_type+
+                           is_repeated_guest:assigned_room_type+ assigned_room_type:required_car_parking_spaces, 
+                         data = hotels_dev_train, family = "binomial")
+coef(lasso_selected_testversion) # rule out non-converged covariates & interactions
+lasso_selected = glm(children ~ (.-arrival_date-deposit_type) + hotel:reserved_room_type+ meal:is_repeated_guest+ 
+                       adults:previous_bookings_not_canceled+ meal:previous_bookings_not_canceled+ market_segment:customer_type+
+                       is_repeated_guest:assigned_room_type+ assigned_room_type:required_car_parking_spaces, 
+                     data = hotels_dev_train, family = "binomial")
+
+## (2) Out-of-sample performance evaluation: likelihood/deviance/TPR/FPR/FDR
+### baseline evaluation
+#### calculate deviance
+test_child_index = which(hotels_dev_test$children == 1) # find actual booking with children
+phat_baseline1 = predict(baseline1, hotels_dev_test, type = "response") # baseline1
+baseline1_predict_deviance = -2 * sum(log(phat_baseline1[test_child_index]))
+phat_baseline2 = predict(baseline2, hotels_dev_test, type = "response") # baseline2
+baseline2_predict_deviance = -2 * sum(log(phat_baseline2[test_child_index]))
+phat_lasso_selected = predict(lasso_selected, hotels_dev_test, type = "response") # lasso_selected
+lasso_selected_predict_deviance = -2 * sum(log(phat_lasso_selected[test_child_index]))
+#### confusion matrix + relevant evaluation
+yhat_baseline1 = ifelse(phat_baseline1>0.5, 1, 0)
+yhat_baseline2 = ifelse(phat_baseline2>0.5, 1, 0)
+yhat_lasso_selected = ifelse(phat_lasso_selected>0.5, 1, 0)
+confusion_baseline1 = table(y=hotels_dev_test$children, yhat=yhat_baseline1)
+confusion_baseline1 = cbind(confusion_baseline1, c(0,0))
+confusion_baseline2 = table(y=hotels_dev_test$children, yhat=yhat_baseline2)
+confusion_lasso_selected = table(y=hotels_dev_test$children, yhat=yhat_lasso_selected)
+
+## (3) Output: a table of measuring out-of-sample performance
+measurement = c("Deviance", "TPR", "FPR", "FDR")
+eval_baseline1 = c(baseline1_predict_deviance,
+                   confusion_baseline1[2,2]/(confusion_baseline1[2,2]+confusion_baseline1[2,1]),
+                   confusion_baseline1[1,2]/(confusion_baseline1[1,1]+confusion_baseline1[1,2]),
+                   confusion_baseline1[1,2]/(confusion_baseline1[1,2]+confusion_baseline1[2,2])) %>% round(3)
+eval_baseline2 = c(baseline2_predict_deviance,
+                   confusion_baseline2[2,2]/(confusion_baseline2[2,2]+confusion_baseline2[2,1]),
+                   confusion_baseline2[1,2]/(confusion_baseline2[1,1]+confusion_baseline2[1,2]),
+                   confusion_baseline2[1,2]/(confusion_baseline2[1,2]+confusion_baseline2[2,2])) %>% round(3)
+eval_lasso_selected = c(lasso_selected_predict_deviance,
+                        confusion_lasso_selected[2,2]/(confusion_lasso_selected[2,2]+confusion_lasso_selected[2,1]),
+                        confusion_lasso_selected[1,2]/(confusion_lasso_selected[1,1]+confusion_lasso_selected[1,2]),
+                        confusion_lasso_selected[1,2]/(confusion_lasso_selected[1,2]+confusion_lasso_selected[2,2])) %>% round(3)
+rbind(measurement, eval_baseline1, eval_baseline2, eval_lasso_selected)
+## We can see that the lasso model has the smallest deviance, the highest TPR(higher is better)
+## and the lowest FPR & FDR (Both 2 are "lower is better")
+
+#####
+## Model Validation: Step 1
+#####
+## (1) Preidcition with validation set
+phat_lasso_predict_best = predict(lasso_selected, hotels_val, type = "response")
+## (2) Calculate TPR & FPR vs. t
+t_grid = rep(1:49)/50
+ROC_df = foreach(t = t_grid, .combine='rbind') %dopar% {
+  yhat_best = ifelse(phat_lasso_predict_best > t, 1, 0)
+  confusion_best = table(y=hotels_val$children, yhat=yhat_best)
+  TPR_best = confusion_best[2,2]/(confusion_best[2,2]+confusion_best[2,1]) %>% round(3)
+  FPR_best = confusion_best[1,2]/(confusion_best[1,1]+confusion_best[1,2]) %>% round(3)
+  c(t=t, TPR = TPR_best, FPR = FPR_best)
+} %>% as.data.frame()
+## (3) Plot the graph
+ggplot(ROC_df) +
+  geom_line(aes(x=t, y=TPR, color = "TPR"), size=1) +
+  geom_line(aes(x=t, y=FPR, color = "FPR"), size=1) +
+  labs(y="TPR/FPR", x = "t", color=" ")
+### real ROC Curve (use this)  
+ggplot(ROC_df) +
+  geom_line(aes(x=FPR, y=TPR), size=1) +
+  labs(y="TPR", x = "FPR", color=" ")
+
+#####
+## Model Validation: Step 2
+#####
+
+# Create 20 folds
+K_folds = 20
+
+hotels_val = hotels_val %>%
+  mutate(fold_id = rep(1:K_folds, length=nrow(hotels_val)) %>% sample)
+
+hotels_val_cv = foreach(fold = 1:K_folds, .combine='rbind') %dopar% {
+  hotels_val_folds_train = filter(hotels_val, fold_id == fold)
+  hotels_val_folds_phat = predict(lasso_selected, hotels_val_folds_train, type = "response")
+  c(y=sum(hotels_val_folds_train$children), E_y=sum(hotels_val_folds_phat)%>%round(0))
+} %>% as.data.frame()
+
+hotels_val_cv = hotels_val_cv %>%
+  arrange(y) %>%
+  mutate(fold_id = rep(1:K_folds))
+
+# Compare the expected number of booking with children versus
+# the actual number of booking with children
+ggplot(data = hotels_val_cv) +
+  geom_line(aes(x=fold_id, y=y, color = "Actual number of children"),  size=1) +
+  geom_line(aes(x=fold_id, y=E_y, color = "Predicted number of children"), size=1) +
+  labs(y="Predicted / Actual Children for Each Fold", x = "t", color=" ")+
+  geom_point(aes(x=fold_id, y=y)) +
+  geom_point(aes(x=fold_id, y=E_y))
+
+## We can see that our model doesn't perform well
