@@ -33,12 +33,21 @@ saratoga_train = training(saratoga_split)
 saratoga_test = testing(saratoga_split)
 
 #try 3 different linear models,then compare
+<<<<<<< Updated upstream
 lm1 = lm(price ~ lotSize + lotSize:age + age + 
            landValue + bathrooms + sewer, data=saratoga_train)
 lm2 = lm(price ~ lotSize + age + log(landValue) + log(livingArea) + 
            bedrooms + bathrooms +  bedrooms:bathrooms + 
            rooms, data=saratoga_train)
 lm3 = lm(price ~  lotSize + age + log(landValue) 
+=======
+lm1 = lm(log(price) ~ lotSize + lotSize:age + age + 
+           landValue + bathrooms + sewer, data=saratoga_train)
+lm2 = lm(log(price) ~ lotSize + age + log(landValue) + log(livingArea) + 
+           bedrooms + bathrooms +  bedrooms:bathrooms + 
+           rooms, data=saratoga_train)
+lm3 = lm(log(price) ~  lotSize + age + log(landValue) 
+>>>>>>> Stashed changes
          + log(livingArea) + log(landValue):log(livingArea) 
          + bedrooms + bathrooms + rooms
          + fireplaces:waterfront, data=saratoga_train)
@@ -115,9 +124,14 @@ models = map(SaratogaHouses_folds$train, ~ knnreg(log(price) ~ lotSize+age+log(l
 errs = map2_dbl(models, SaratogaHouses_folds$test, modelr::rmse)
 
 mean(errs)
+<<<<<<< Updated upstream
 sd(errs)/sqrt(k_folds)  
 ```
 ## Since the error from knn model is smaller than that in lm3, I think knn model does a better prediction in the price of house in NY.
+=======
+```
+##  The error from the optimal knn model is 0.3486, larger than that of linear model 3, which is 0.29. Thus linear model seems to do better at achieving lower out-of-sample mean-squared error. Therefore as for price-modeling strategies for a local taxing authority, we should pay more attention to the linear model’s prediction to estimate market values for properties.
+>>>>>>> Stashed changes
 
 # Question 2: Classification and retrospective sampling
 ```{r,echo=FALSE, message= FALSE, warning=FALSE}
