@@ -2,7 +2,9 @@
 title: "Untitled"
 author: "Jyun-Yu Cheng, Haokun Zhang"
 date: '2023-02-15'
-output: pdf_document
+output: 
+  pdf_document: default
+  md_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -115,7 +117,7 @@ errs = map2_dbl(models, SaratogaHouses_folds$test, modelr::rmse)
 
 mean(errs)
 ```
-##  The error from the optimal knn model is 0.3486, larger than that of linear model 3, which is 0.29. Thus linear model seems to do better at achieving lower out-of-sample mean-squared error. Therefore as for price-modeling strategies for a local taxing authority, we should pay more attention to the linear model prediction to estimate market values for properties.
+## The error from the optimal knn model is 0.3486, larger than that of linear model 3, which is 0.29. Thus linear model seems to do better at achieving lower out-of-sample mean-squared error. Therefore as for price-modeling strategies for a local taxing authority, we should pay more attention to the linear model prediction to estimate market values for properties.
 
 # Question 2: Classification and retrospective sampling
 ```{r,echo=FALSE, message= FALSE, warning=FALSE}
@@ -144,6 +146,8 @@ ggplot(default_prop, aes(x= history, y=Freq))+
   labs(title ="Default Probabiltiy by Credit History") 
 ```
 
+## After running the regression, a out-of-sample performance is examined.
+
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
 #split to test and training
 credit_split = initial_split(credit, 0.8)
@@ -151,8 +155,8 @@ credit_test = testing(credit_split)
 credit_training = training(credit_split)
 #run a predictive logit regression
 logit_credit2 = glm(Default ~ + duration + amount + installment + age + history + purpose + foreign, data = credit_training, family = 'binomial')
-summary(logit_credit2)
-coef(logit_credit2) %>% round(2)
+kable(coef(logit_credit2) %>% round(2), 
+      col.names = c('coef'))
 ```
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
@@ -161,9 +165,10 @@ phat_test_logit_credit2 = predict(logit_credit2, credit_test, type='response')
 yhat_test_logit_credit2 = ifelse(phat_test_logit_credit2 > 0.5, 1, 0)
 confusion_out_logit2 = table(y = credit_test$Default,
                             yhat=yhat_test_logit_credit2)
-confusion_out_logit2
+
+kable(confusion_out_logit2)
 ```
-## The coef for having poor and terrible credit history is -1.11 and -1.88. They are statsitically signicifant. Having a poor or terrible credit history multiplies odds of default by 0.33 and 0.15, which counter-intuitively have negative effect on default. The retrospective, "case-control" method that the bank used to select samples resulted in a substantial oversampling of defaults, relative to a random sample of loans in the bank's overall portfolio. If the purpose of the model is to screen prospective borrowers to classify them into "high" versus "low" probability of default, this data set is not appropriate for building a predictive model.  
+## The coefficients for having poor and terrible credit history are negative. They are also statsitically signicifant. Having a poor or terrible credit history multiplies odds of default, which counter-intuitively has negative effect on default. The retrospective, "case-control" method that the bank used to select samples resulted in a substantial oversampling of defaults, relative to a random sample of loans in the bank's overall portfolio. If the purpose of the model is to screen prospective borrowers to classify them into "high" versus "low" probability of default, this data set is not appropriate for building a predictive model.  
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
 kable(table(credit$Default),
