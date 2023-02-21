@@ -36,7 +36,7 @@ lm2 = lm(price ~ . - pctCollege - sewer - waterfront - landValue - newConstructi
 lm3 = lm(price ~ (. - pctCollege - sewer - waterfront - landValue - newConstruction)^2, data=saratoga_train)
 
 #hand build a new model
-lm4 = lm(price ~ . - pctCollege - sewer - fuel -fireplaces -livingArea -landValue +poly(landValue, 2) +livingArea:centralAir +bathrooms:heating, data=saratoga_train)
+lm4 = lm(price ~ . - pctCollege - sewer - fuel -fireplaces +livingArea:centralAir +bathrooms:heating, data=saratoga_train)
 
 #summarize and test the model's aic and bic
 summary(lm4)

@@ -16,6 +16,8 @@ library(ggplot2)
 library(modelr)
 library(rsample)
 library(mosaic)
+library(dplyr)
+library(tidyr)
 data(SaratogaHouses)
 ```
 
@@ -24,13 +26,14 @@ SaratogaHouses$loglivingArea <- log(SaratogaHouses$livingArea)
 saratoga_split = initial_split(SaratogaHouses, prop = 0.8)
 saratoga_train = training(saratoga_split)
 saratoga_test = testing(saratoga_split)
+SaratogaHouses$loglivingArea <- log(SaratogaHouses$livingArea)
 ```
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
 # write a new model, lm4 for comparison 
 lm2 = lm(price ~ . - pctCollege - sewer - waterfront - landValue - newConstruction, data=saratoga_train)
 lm3 = lm(price ~ (. - pctCollege - sewer - waterfront - landValue - newConstruction)^2, data=saratoga_train)
-lm4 = lm(price ~ . - pctCollege - sewer - fuel -fireplaces -livingArea -landValue +poly(landValue, 2) +livingArea:centralAir +bathrooms:heating, data=saratoga_train)
+lm4 = lm(price ~ . - pctCollege - sewer - fuel -fireplaces -livingArea -landValue +poly(landValue, 2) +loglandValue +livingArea:centralAir +bathrooms:heating, data=saratoga_train)
 ```
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
@@ -50,15 +53,25 @@ rmse(lm4, saratoga_test)
 
 # Question 2: Classification and retrospective sampling
 ```{r,echo=FALSE, message= FALSE, warning=FALSE}
-credit = read.csv("../data/german_credit.csv")
+credit=read.csv("../data/german_credit.csv")
+credit_df <- data.frame(credit)
 ```
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
-#build a bar plot of history
-barplot(table(credit$history),
-        main='count of credit history',
-        xlab='credit history',
-        ylab='count')
+# Make a bar plot of default probability by credit history
+credit_table <- data.frame(addmargins(prop.table(table(credit$Default,
+                                            credit$history,
+                                            dnn=c('Default', 'credit_history'))))) # make a df on defaulted credit account
+# filter
+default_prop <- credit_table %>%
+  filter(Default == 1 & credit_history != 'Sum')
+# make the bar plot
+ggplot(default_prop, aes(x= credit_history, y=Freq))+
+  geom_bar(fill= "#0073C2FF", stat = "identity")+
+  geom_text(aes(label = Freq), vjust=-0.3) +
+  expand_limits(y=c(0,0.5))+
+  xlab("Credit History") + ylab("Probability of Default") + 
+  labs(title ="Default Probabiltiy by Credit History") 
 ```
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
@@ -80,12 +93,14 @@ confusion_out_logit2 = table(y = credit_test$Default,
                             yhat=yhat_test_logit_credit2)
 confusion_out_logit2
 ```
-##The coef for having poor and terrible credit history is -1.11 and -1.88. Having a poor or terrible credit history multiplies odds of default by 0.33 and 0.15. If the purpose of the model is to screen prospective borrowers to classify them into "high" versus "low" probability of default, this data set is not appropriate for building a predictive model, because of class imbalance, the ratio of number of non-default and default is more than 2:1, by blindly prediciting more than half of data points as non-default, this model will not predict default well
+##The coef for having poor and terrible credit history is -1.11 and -1.88. They are statsitically signicifant. Having a poor or terrible credit history multiplies odds of default by 0.33 and 0.15, which counter-intuitively have negative effect on default. The retrospective, "case-control" method that the bank used to select samples resulted in a substantial oversampling of defaults, relative to a random sample of loans in the bank's overall portfolio. If the purpose of the model is to screen prospective borrowers to classify them into "high" versus "low" probability of default, this data set is not appropriate for building a predictive model.  
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
 table(credit$Default)
 ```
-## A suggestion I can make is balance the number of defaults so that the 1's and 0's are in approximately equal proportions
+## To improve the sampling scheme under limited resources to get the data on all subjects in the loans, it requires a method to reduce the oversampling of defaults. Previously, the set of non-defauled loans ("controls") is matched with similar set of defaulted loans, leaving "controls" less independent of the set of defaulted loans, the "controls" are not reprensentative of the source population that produced the default cases either. Selection bias resulted. A better sampling scheme should adhere to fixing these two issues. A random sampling method will give defaulted loans and non-defaulted loans equal chance of being selected, and the "controls" is selected independently from the cases. 
+
+## The second step is to increase the ratio between non-defaulted loan and defaulted loan. Since defaulted loans are rare cases and non-defaulted loans are plentiful, the statistical power of the study can be increased by enrolling more non-defaulted loans than the defaulted. However, ratio more than 4 controls over 1 case adds little impact on power. Therefore, if it is time-consuming or expensive to collect sets of controls, the ratio should not exceed 4:1. Alternatively, if it is not expensive, there is no reason to limit the number of non-defaulted loans. In this case of 300 defaulted loans, the number of non-defaulted loans can be increased from 700 to 1200 or even more. With these two steps, the sampling scheme will be improved.
 
 # Question 3: Children and hotel reservations
 ```{r,echo=FALSE, message= FALSE, warning=FALSE}
