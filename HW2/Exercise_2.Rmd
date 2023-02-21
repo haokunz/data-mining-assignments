@@ -44,7 +44,7 @@ lm3 = lm(log(price) ~  lotSize + age + log(landValue)
          + fireplaces:waterfront, data=saratoga_train)
 rmse(lm1, saratoga_test)
 rmse(lm2, saratoga_test)
-rmse(lm3, saratoga_test)  
+rmse(lm3, saratoga_test)   
 ```
 ## Since lm3 has the least rmse, lm3 is the best model among these above 3 lm models
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
@@ -70,16 +70,16 @@ ggplot(cv_SaratogaHouses) +
 ```
 ## We can get the best k according to the following:
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
-k_min_rmse = cv_SaratogaHouses %>%
+k_min_error = cv_SaratogaHouses %>%
   slice_min(err) %>%
   pull(k)
-k_min_rmse
+k_min_error
 ```
 ## Then we calculate the knn20 method RMSE
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
 #then We calculate the knn20 method RMSE
-knn_k_min_rmse = knnreg(log(price) ~ lotSize+age+log(landValue) + log(livingArea) + bedrooms + bathrooms + rooms, data=saratoga_train,k=k_min_rmse)
-modelr::rmse(knn_k_min_rmse, saratoga_test)
+knn_min_error = knnreg(log(price) ~ lotSize+age+log(landValue) + log(livingArea) + bedrooms + bathrooms + rooms, data=saratoga_train,k=k_min_error)
+modelr::rmse(knn_min_error, saratoga_test)
 ```
 
 ## Then averaging the estimate of out-of-sample RMSE over many different random train/test splits for the linear models, either randomly or by cross-validation.
@@ -108,15 +108,14 @@ model_errors
 #k-fold validation for knn model
 k_folds = 5
 SaratogaHouses_folds = crossv_kfold(SaratogaHouses, k=k_folds)
-models = map(SaratogaHouses_folds$train, ~ knnreg(log(price) ~ lotSize+age+log(landValue) + log(livingArea) + bedrooms + bathrooms + rooms, k=k_min_rmse, data = ., use.all=FALSE))
-
+models = map(SaratogaHouses_folds$train, ~ knnreg(log(price) ~ lotSize+age+log(landValue) + log(livingArea) + bedrooms + bathrooms + rooms, k=k_min_error, data = ., use.all=FALSE))
 
 # map the RMSE calculation over the trained models and test sets simultaneously
 errs = map2_dbl(models, SaratogaHouses_folds$test, modelr::rmse)
 
 mean(errs)
 ```
-##  The error from the optimal knn model is 0.3486, larger than that of linear model 3, which is 0.29. Thus linear model seems to do better at achieving lower out-of-sample mean-squared error. Therefore as for price-modeling strategies for a local taxing authority, we should pay more attention to the linear model’s prediction to estimate market values for properties.
+##  The error from the optimal knn model is 0.3486, larger than that of linear model 3, which is 0.29. Thus linear model seems to do better at achieving lower out-of-sample mean-squared error. Therefore as for price-modeling strategies for a local taxing authority, we should pay more attention to the linear model prediction to estimate market values for properties.
 
 # Question 2: Classification and retrospective sampling
 ```{r,echo=FALSE, message= FALSE, warning=FALSE}
@@ -164,10 +163,12 @@ confusion_out_logit2 = table(y = credit_test$Default,
                             yhat=yhat_test_logit_credit2)
 confusion_out_logit2
 ```
-##The coef for having poor and terrible credit history is -1.11 and -1.88. They are statsitically signicifant. Having a poor or terrible credit history multiplies odds of default by 0.33 and 0.15, which counter-intuitively have negative effect on default. The retrospective, "case-control" method that the bank used to select samples resulted in a substantial oversampling of defaults, relative to a random sample of loans in the bank's overall portfolio. If the purpose of the model is to screen prospective borrowers to classify them into "high" versus "low" probability of default, this data set is not appropriate for building a predictive model.  
+## The coef for having poor and terrible credit history is -1.11 and -1.88. They are statsitically signicifant. Having a poor or terrible credit history multiplies odds of default by 0.33 and 0.15, which counter-intuitively have negative effect on default. The retrospective, "case-control" method that the bank used to select samples resulted in a substantial oversampling of defaults, relative to a random sample of loans in the bank's overall portfolio. If the purpose of the model is to screen prospective borrowers to classify them into "high" versus "low" probability of default, this data set is not appropriate for building a predictive model.  
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
-table(credit$Default)
+kable(table(credit$Default),
+      col.names = c("Default Type",
+                    "Sample Size"), caption = "Default Sample Size")
 ```
 ## To improve the sampling scheme under limited resources to get the data on all subjects in the loans, it requires a method to reduce the oversampling of defaults. Previously, the set of non-defauled loans ("controls") is matched with similar set of defaulted loans, leaving "controls" less independent of the set of defaulted loans, the "controls" are not reprensentative of the source population that produced the default cases either. Selection bias resulted. A better sampling scheme should adhere to fixing these two issues. A random sampling method will give defaulted loans and non-defaulted loans equal chance of being selected, and the "controls" is selected independently from the cases. 
 
