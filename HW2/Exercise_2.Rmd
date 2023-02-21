@@ -59,17 +59,21 @@ credit_df <- data.frame(credit)
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
 # Make a bar plot of default probability by credit history
-credit_table <- data.frame(addmargins(prop.table(table(credit$Default,
+credit_table <- data.frame((table(credit$Default,
                                             credit$history,
-                                            dnn=c('Default', 'credit_history'))))) # make a df on defaulted credit account
+                                            dnn=c('Default', 'credit_history'))))
+
+
+
 # filter
-default_prop <- credit_table %>%
-  filter(Default == 1 & credit_history != 'Sum')
+default_prop <- german_credit%>%group_by(Default, history) %>% summarise(n = n())%>% 
+  group_by(history) %>%mutate(Freq = n/sum(n)) %>% filter(Default == 1)
+
 # make the bar plot
-ggplot(default_prop, aes(x= credit_history, y=Freq))+
+ggplot(default_prop, aes(x= history, y=Freq))+
   geom_bar(fill= "#0073C2FF", stat = "identity")+
   geom_text(aes(label = Freq), vjust=-0.3) +
-  expand_limits(y=c(0,0.5))+
+  expand_limits(y=c(0,1))+
   xlab("Credit History") + ylab("Probability of Default") + 
   labs(title ="Default Probabiltiy by Credit History") 
 ```
