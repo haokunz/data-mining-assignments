@@ -76,48 +76,35 @@ k_min_error = cv_SaratogaHouses %>%
   slice_min(err) %>%
   pull(k)
 k_min_error
+
 ```
 ## Then we calculate the best knn method's error
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
 #then We calculate the knn20 method RMSE
-knn_min_error = knnreg(log(price) ~ lotSize+age+log(landValue) + log(livingArea) + bedrooms + bathrooms + rooms, data=saratoga_train,k=k_min_error)
-modelr::rmse(knn_min_error, saratoga_test)
+knnmodels =map(SaratogaHouses_folds$train, ~ knnreg(log(price) ~ lotSize+age+log(landValue) + log(livingArea) + bedrooms + bathrooms + rooms, k=k_min_error, data = ., use.all=FALSE))
+knnerrs = map2_dbl(knnmodels, SaratogaHouses_folds$test, modelr::rmse)
+knnerrs
+mean(knnerrs)
 ```
 
-## Then averaging the estimate of out-of-sample RMSE over many different random train/test splits for the linear models, either randomly or by cross-validation.
+## then we calculate the best lm model's error 
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
-rmse_sim = do(20)*{
-  # fresh train/test split
-  sara_split =  initial_split(SaratogaHouses, prop=0.8)
-  sara_train = training(sara_split)
-  sara_test  = testing(sara_split)
-  
-  # refit our models to this particular split
-  # we're using "update" here to avoid having to type out the giant model formulas
-lm1 = update(lm1, data=sara_train)
-lm2 = update(lm2, data=sara_train)
-lm3 = update(lm3, data=sara_train)
+lmmodels = map(SaratogaHouses_folds$train, ~ lm(log(price) ~  lotSize + age + log(landValue) 
+                                              + log(livingArea) + log(landValue):log(livingArea) 
+                                              + bedrooms + bathrooms + rooms
+                                              + fireplaces:waterfront, data = .))
+lmerrs = map2_dbl(lmmodels, SaratogaHouses_folds$test, modelr::rmse)
+lmerrs
+mean(lmerrs)
 
-# collect the model errors in a single vector
-model_errors = c(rmse(lm1, sara_test), rmse(lm2, sara_test), rmse(lm3, sara_test))
-
-# return the model errors
-model_errors
-}
-model_errors
-
-#k-fold validation for knn model
-k_folds = 5
-SaratogaHouses_folds = crossv_kfold(SaratogaHouses, k=k_folds)
-models = map(SaratogaHouses_folds$train, ~ knnreg(log(price) ~ lotSize+age+log(landValue) + log(livingArea) + bedrooms + bathrooms + rooms, k=k_min_error, data = ., use.all=FALSE))
-
-# map the RMSE calculation over the trained models and test sets simultaneously
-errs = map2_dbl(models, SaratogaHouses_folds$test, modelr::rmse)
-
-mean(errs)
 ```
-## The error from the optimal knn model is 0.3486, larger than that of linear model 3, which is 0.29. Thus linear model seems to do better at achieving lower out-of-sample mean-squared error. Therefore as for price-modeling strategies for a local taxing authority, we should pay more attention to the linear model prediction to estimate market values for properties.
+
+
+## The error from the optimal knn model is 0.3441, larger than that of linear model 3, which is 0.2945. 
+## Thus linear model seems to do better at achieving lower out-of-sample mean-squared error.
+## Therefore as for price-modeling strategies for a local taxing authority, we should pay more attention to the linear model’s prediction to estimate market values for properties.
+
 
 # Question 2: Classification and retrospective sampling
 ```{r,echo=FALSE, message= FALSE, warning=FALSE}
