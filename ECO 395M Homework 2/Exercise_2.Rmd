@@ -1,9 +1,9 @@
 ---
-title: "Untitled"
-author: "Jyun-Yu Cheng, Haokun Zhang"
-date: '2023-02-15'
+title: "ECO 395M Homework 2"
+author: "Haokun Zhang (hz7297), Jyun-Yu Cheng (jc95272) and Lu Zhang (lz7445)"
+date: '2023-02-22'
 output: 
-  pdf_document: default
+
   md_document: default
 ---
 
