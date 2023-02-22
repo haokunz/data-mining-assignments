@@ -77,7 +77,7 @@ k_min_error = cv_SaratogaHouses %>%
   pull(k)
 k_min_error
 ```
-## Then we calculate the knn20 method RMSE
+## Then we calculate the best knn method's error
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
 #then We calculate the knn20 method RMSE
 knn_min_error = knnreg(log(price) ~ lotSize+age+log(landValue) + log(livingArea) + bedrooms + bathrooms + rooms, data=saratoga_train,k=k_min_error)
