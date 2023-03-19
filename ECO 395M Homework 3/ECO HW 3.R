@@ -18,8 +18,10 @@
 
 # 4. Table 4 presents reduction in crime on high-alert days using police patrol concentration on hte national mall. 
 # The first column presents robusted coefficient of estimation of crime in the National Mall area and the other districts during periods of high alert 
-# 2.62 crimes decreased in the National Mall area, implying 15 percent of decline during high-alert days. Crime also decreases in the other distrcts, though the effect is not statistically significant.
+# 2.62 crimes decreased in the National Mall area, implying 15 percent of decline during high-alert days. Crime also decreases in the other districts, though the effect is not statistically significant.
 # Lastly, ten percentage of increase on midday ridership increases 0.24 percent of crime rate.
+
+#-------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 ## Tree modeling: dengue cases
 library(randomForest)
@@ -30,6 +32,7 @@ library(rsample)
 library(gbm)
 library(tree)
 library(mosaic)
+library(pdp)
 
 # this function actually prunes the tree at that level
 prune_1se = function(my_tree) {
@@ -62,8 +65,11 @@ train_ind = sample.int(N, N_train, replace=FALSE) %>% sort
 dengue_train = dengue[train_ind,]
 dengue_test = dengue[-train_ind,]
 
+##
 # build a classification tree with variables indicated in questions
-dengue_tree= rpart(total_cases ~ city + season + specific_humidity + tdtr_k + precipitation_amt, data = dengue_train)
+dengue_tree= rpart(total_cases ~ ., 
+                   data = dengue_train)
+
 # plot the tree
 rpart.plot(dengue_tree, type=4, extra=1)
 
@@ -81,14 +87,17 @@ cp_1se(dengue_tree)
 # this returns predicted class probabilities
 predict(dengue_tree, newdata=dengue_train)
 
+##
 # Regression trees
+##
 
 # grow a smallish tree
 # larger cp and insplit means stop at a smaller tree
-dengue.tree = rpart(total_cases~city + season + specific_humidity + tdtr_k + precipitation_amt, data=dengue_train,
-                  control = rpart.control(cp = 0.0002, minsplit = 10))
+dengue.tree = rpart(total_cases~ ., 
+                    data=dengue_train,
+                    control = rpart.control(cp = 0.0002, minsplit = 10))
 # this says: split only if you have at least 10 obs in a node,
-# and the split improves the fit by a factor of 0.0001
+# and the split improves the fit by a factor of 0.0002
 
 # plot the tree
 # see ?rpart.plot for the various plotting options here (type, extra)
@@ -106,19 +115,70 @@ dengue.tree_prune = prune_1se(dengue.tree)
 #plot the tree 
 rpart.plot(dengue.tree_prune, type=4, digits=-5, extra=1, cex=0.5)
 
+##
 # random forests
-# average over 100 bootstrap samples
-# only 5 candidate variables (mtry=5) in each bootstrapped sample
-dengue2 = randomForest(total_cases ~ ., data = dengue_train, na.action = na.roughfix, mtry = 5, ntree=100)
-yhat_dengue2 = predict(dengue2, dengue_test)
+##
+
+dengue_forest = randomForest(total_cases ~ .,
+                       data = dengue_train, 
+                       na.action = na.roughfix, importance=TRUE)
+# shows out-of-bag MSE as a function of the number of trees used
+plot(dengue_forest)
+
+# let's compare RMSE on the test set
+modelr::rmse(dengue_tree, dengue_test)
+modelr::rmse(dengue.tree, dengue_test)
+modelr::rmse(dengue_forest, dengue_test) # randomforest has less RMSE
+
+yhat_dengue2 = predict(dengue_forest, dengue_test)
 rmse_dengue2 = mean((yhat_dengue2 - dengue_test$total_cases)^2) %>% sqrt
 
+##
+# boosting
+##
 
-boost_dengue = gbm(total_cases ~ ., data=dengue_train, 
-                  n.trees=500, shrinkage=.05)
-yhat_boost = predict(boost_dengue, dengue_test, n.trees=500)
-rmse_boost = mean((yhat_boost - dengue_test$total_cases)^2) %>% sqrt
-rmse_boost
+# boost model with default distribution
+dengue_boost = gbm(total_cases ~ .,
+                   data = dengue_train, 
+                   interaction.depth=4, n.trees=500, shrinkage=.05)
+
+# Look at error curve
+gbm.perf(dengue_boost)
+
+yhat_test_gbm = predict(dengue_boost, dengue_test, n.trees=500)
+
+# RMSE
+modelr::rmse(dengue_boost, dengue_test)
 
 
+# What if we assume a Poisson error model?
+dengue_boost2 = gbm(total_cases ~ ., 
+             data = dengue_train, distribution='poisson',
+             interaction.depth=4, n.trees=500, shrinkage=.05)
 
+# error curve
+gbm.perf(dengue_boost2)
+
+# Note: the predictions for a Poisson model are on the log scale by default
+# use type='response' to get predictions on the original scale
+# all this is in the documentation, ?gbm
+yhat_test_gbm2 = predict(dengue_boost2, dengue_test, n.trees=500, type='response')
+
+# but this subtly messes up the rmse function, which uses predict with default args
+# so we need to roll our own calculate for RMSE
+(yhat_test_gbm2 - dengue_test$total_cases)^2 %>% mean %>% sqrt
+
+
+# What if we assume a gaussian error model?
+dengue_boost3 = gbm(total_cases ~ ., 
+                    data = dengue_train, distribution='gaussian', # guassian for std error
+                    interaction.depth=4, n.trees=500, shrinkage=.05)
+
+# error curve
+gbm.perf(dengue_boost3)
+
+# predict yhat
+yhat_test_gbm = predict(dengue_boost3, dengue_test, n.trees=500)
+
+# RMSE
+modelr::rmse(dengue_boost3, dengue_test)
