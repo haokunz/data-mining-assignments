@@ -33,6 +33,11 @@ library(gbm)
 library(tree)
 library(mosaic)
 library(pdp)
+library(ggplot2)
+library(parallel)
+library(foreach)
+library(gamlr)
+library(modelr)
 
 # this function actually prunes the tree at that level
 prune_1se = function(my_tree) {
@@ -182,3 +187,77 @@ yhat_test_gbm = predict(dengue_boost3, dengue_test, n.trees=500)
 
 # RMSE
 modelr::rmse(dengue_boost3, dengue_test)
+
+
+## Question 3: Predictive model building: green certification
+# goal is to build the best predictive model possible for _revenue per square foot per calendar year_, 
+# and to use this model to quantify the average change in rental income per square foot (whether in absolute or percentage terms) 
+# associated with green certification, holding other features of the building constant.
+
+# load in data
+greenbuildings = read.csv('https://raw.githubusercontent.com/jgscott/ECO395M/master/data/greenbuildings.csv')
+# create revenue variable
+greenbuildings$revenue_per_square_foot_per_calendar_year <- greenbuildings$Rent * greenbuildings$leasing_rate
+# collapse LEED and Energystart to green-certification variable and convert the variable type
+greenbuildings$green_certification <- paste(greenbuildings$LEED, 
+                                            greenbuildings$Energystar, sep = "_")
+greenbuildings$green_certification <- as.factor(greenbuildings$green_certification) # change type of green_certification from chr to factor
+imputegreen <- knnImputation(greenbuildings, k = 10, scale = T, meth = "median", distData = NULL) # fill any missing value using KNN method
+
+# split data to training and testing
+splitgreen = initial_split(imputegreen, prop = 0.8) # 80% of the data as training data
+green_training = training(splitgreen)
+green_testing = testing(splitgreen)
+
+
+## Try to build predictive models
+# 1. build a predictive model using three tree models
+# CART model
+cart_green = rpart(revenue_per_square_foot_per_calendar_year ~ . -LEED -Energystar, 
+                    data = green_training, 
+                    control = rpart.control(cp = 0.002, minsplit=20))
+### Split only if we have at least 20 obs in a node,
+### and the split improves the fit by a factor of 0.002 aka 0.2%
+
+# RandomForest model
+rforest_green = randomForest(revenue_per_square_foot_per_calendar_year ~ . -LEED -Energystar,
+                             data = green_training,
+                             importance=TRUE)
+
+# Gradient-boosted model building
+## in the "capmetro.R"
+gbm_green = gbm(revenue_per_square_foot_per_calendar_year ~ . -LEED -Energystar,
+                 data = green_training, 
+                 interaction.depth=4, n.trees=500, shrinkage=.05)
+
+# Test these models
+yhat_cart = predict(cart_green, green_testing)
+plot(yhat_cart, green_testing$revenue_per_square_foot_per_calendar_year)
+rmse(cart_green, green_testing)
+
+yhat_rf = predict(rforest_green, green_testing)
+plot(yhat_rf, green_testing$revenue_per_square_foot_per_calendar_year)
+rmse(rforest_green, green_testing)
+
+yhat_gbm = predict(gbm_green, green_testing, n.trees=350)
+plot(yhat_gbm, green_testing$revenue_per_square_foot_per_calendar_year)
+rmse(gbm_green, green_testing)
+
+# 2. Write a Lasso Regression
+
+# create own feature matrix
+green_lasso_x_main = sparse.model.matrix(revenue_per_square_foot_per_calendar_year ~  (.-1 -LEED -Energystar), data=green_training)
+green_lasso_x_itac = sparse.model.matrix(revenue_per_square_foot_per_calendar_year ~  (.-1 -LEED -Energystar)^2, data=green_training)
+green_lasso_y = green_training$revenue_per_square_foot_per_calendar_year
+## "$" extract a specific part of a data object
+
+# fit a single lasso
+# greenlasso_main = glm(green_lasso_y~., data = green_training, family="gaussian")
+# plot(greenlasso_main) # the path plot
+
+greenlasso_main = gamlr(green_lasso_x_main, green_lasso_y, family="gaussian")
+plot(greenlasso_main)
+
+greenlasso_itac = gamlr(green_lasso_x_itac, green_lasso_y, family="gaussian")
+plot(greenlasso_itac)
+
