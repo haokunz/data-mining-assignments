@@ -262,8 +262,8 @@ forest = randomForest(revenue ~ .- cluster - CS_PropertyID - LEED - Rent - leasi
                        data=green_training)
 # use forest model to predict 
 yhat_test_forest = predict(forest, green_testing)
-plot(yhat_test_forest, green_testing$revenue, xlab = "Predicted  Rent: Forest", ylab = "Revenue")
-title("Comparison between  Random Forest Predicted and Real Revenue")
+plot(yhat_test_forest, green_testing$revenue, main = "Comparison between  Random Forest Predicted and Real Revenue",xlab = "Predicted  Rent: Forest", ylab = "Revenue")
+# title("Comparison between  Random Forest Predicted and Real Revenue")
 # access the forest1 model by testing-set
 RMSE_forest = rmse(forest, green_testing)
 ```
@@ -278,8 +278,8 @@ CART1 = rpart(revenue~ + size + empl_gr + stories + age + renovated + class_a + 
 # use CART to predict 
 # use CART to predict 
 yhat_test_CART = predict(CART1, green_testing)
-plot(yhat_test_CART, green_testing$revenue, xlab = "Predicted Rent: CART", ylab = "Revenue")
-title("Comparison between CART Predicted and Real Revenue")
+plot(yhat_test_CART, green_testing$revenue, maint= "Comparison between CART Predicted and Real Revenue", xlab = "Predicted Rent: CART", ylab = "Revenue")
+#title("Comparison between CART Predicted and Real Revenue")
 # access the CART model by testing-set
 RMSE_CART = rmse(CART1, green_testing)
 #RMSE_CART=rmse(green_testing$revenue, yhat_test_CART)
@@ -292,8 +292,8 @@ Bagging1<-bagging(formula=revenue~ .- cluster - CS_PropertyID - LEED - Rent - le
 yhat_test_Bagging=predict(Bagging1,newdata=green_testing)
 RMSE_Bagging=rmse(Bagging1, green_testing)
 RMSE_Bagging
-plot(yhat_test_Bagging, green_testing$revenue, xlab = "Predicted  Rent: Bagging", ylab = "Revenue")
-title("Comparison between Bagging Predicted and Real Revenue")
+plot(yhat_test_Bagging, green_testing$revenue, maint="Comparison between Bagging Predicted and Real Revenue", xlab = "Predicted  Rent: Bagging", ylab = "Revenue")
+#title("Comparison between Bagging Predicted and Real Revenue")
 
 ```
 
@@ -306,8 +306,8 @@ boost1 = gbm(revenue ~ .- cluster - CS_PropertyID - LEED - Rent - leasing_rate -
 yhat_test_gbm = predict(boost1, green_testing, n.trees=400)
 RMSE_gbm = rmse(boost1, green_testing) # access the boosting model by testing-set
 RMSE_gbm 
-plot(yhat_test_gbm, green_testing$revenue, xlab = "Predicted  Rent: Boost", ylab = "Revenue")
-title("Comparison between Boosted Trees Predicted and Real Revenue")
+plot(yhat_test_gbm, green_testing$revenue, maint="Comparison between Boosted Trees Predicted and Real Revenue", xlab = "Predicted  Rent: Boost", ylab = "Revenue")
+#title("Comparison between Boosted Trees Predicted and Real Revenue")
 
 ```
 
@@ -370,7 +370,7 @@ Predict_GrennC0 = predict(Forest_Best, Green_certifed0)
 Predict_GrennC1 = predict(Forest_Best, Green_certifed1)
 Diff_0to1=Predict_GrennC1-Predict_GrennC0
 Diff_mean=mean(Diff_0to1)
-Diff_mean
+cat("The average effect of green certification on the rent income is ", Diff_mean, "\n")
 ```
 **Step 3 : Conclusion**
 
