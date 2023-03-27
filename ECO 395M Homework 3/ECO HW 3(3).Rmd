@@ -385,6 +385,9 @@ library(rsample)
 library(modelr)
 library(randomForest)
 library(ggmap)
+library(rpart)       #for fitting decision trees
+library(gbm)
+library(ipred)       #for fitting bagged decision trees
 ```
 
 ```{r,echo=FALSE, message= FALSE, warning=FALSE}
@@ -438,10 +441,10 @@ model_boosting = gbm(medianHouseValue ~ .-totalRooms-totalBedrooms,
 Calculate the RMES of each model
 ```{r,echo=FALSE, message= FALSE, warning=FALSE}
 # calculate the rmse of each model 
-rmse(model_random_forest, CAhousing_testing)
-rmse(model_bagging, CAhousing_testing) 
-rmse(model_CART, CAhousing_testing) 
-rmse(model_boosting, CAhousing_testing) 
+cat("RMSE of RandomForest is ", rmse(model_random_forest, CAhousing_testing), "\n")
+cat("RMSE of bagging is ", rmse(model_bagging, CAhousing_testing), "\n") 
+cat("RMSE of CART is ", rmse(model_CART, CAhousing_testing), "\n") 
+cat("RMSE of Boosting is ", rmse(model_boosting, CAhousing_testing), "\n") 
 ```
 We decide to choose model_bagging as the best predictive model because it has the smallest RMSE.
 
