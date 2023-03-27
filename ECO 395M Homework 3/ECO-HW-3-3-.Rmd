@@ -136,13 +136,9 @@ cart_dengue_rmse<-modelr::rmse(cart_dengue, dengue_testing)
 rforest_dengue_rmse<-modelr::rmse(rforest_dengue, dengue_testing) 
 gbm_dengue_rmse<-modelr::rmse(gbm_dengue, dengue_testing) 
 
-# create a data frame
-rmse_comparsion<- data.frame(
-  Model=c("CART", "RandomForest", "Gradient Boosting"),
-  RMSE =c(cart_dengue_rmse, rforest_dengue_rmse, gbm_dengue_rmse)
-)
-# print the data frame as a table
-kable(rmse_comparsion)
+cat("The RMSE of CART model is ", cart_dengue_rmse, "\n")
+cat("The RMSE of RandomForest model is ", rforest_dengue_rmse, "\n")
+cat("The RMSE of Gradient Boosting model is ", gbm_dengue_rmse, "\n")
 ```
 We also evaluate the performance of three models by comparing their MSE.
 ```{r,echo=FALSE, message=FALSE, warning=FALSE}
@@ -168,17 +164,10 @@ cart_accuracy <- mean((cart_performance - dengue_testing$total_cases)^2)
 rf_accuracy <- mean((rf_performance - dengue_testing$total_cases)^2)
 gb_accuracy <- mean((gb_performance - dengue_testing$total_cases)^2)
 
-cart_accuracy
-rf_accuracy
-gb_accuracy
-
 # print out the MSE of each model to console, the lower the better the model is 
-#Dengue_MSE <- data.frame(
-#  Model=c("CART", "RandomForest", "Gradient Boosting"),
-#  MSE = c(cart_accuracy, rf_accuracy, gb_accuracy)
-#)
-
-#kable(Dengue_MSE)
+cat("The MSE of CART Model is ", cart_accuracy, "\n")
+cat("The MSE of randomForest is ", rf_accuracy, "\n")
+cat("The MSE of Gradient Boosting is ", gb_accuracy, "\n")
 ```
 
 Because the gradient-boosted model has the smallest out-of-sample RMSE and MSE, we decided to choose it as the model to make partial dependence plots
@@ -318,19 +307,12 @@ plot(yhat_test_gbm, green_testing$revenue, maint="Comparison between Boosted Tre
 **Step 2 : Compare their RMSE to find out which one is the best predictive model**
 ```{r,echo=FALSE, message= FALSE, warning=FALSE}
 ### Step 2 : Compare their RMSE to find out which one is the best predictive model
-Green_RMSE<- data.frame(Model=c("Linear Model",
-                                "Random Forest",
-                                "CART",
-                                "Bagging",
-                                "Gradient Boosting"),
-                        RMSE=c(RMSE_LM, 
-                                RMSE_forest, 
-                                RMSE_CART,
-                                RMSE_Bagging,
-                                RMSE_gbm)
-                        )
-kable(Green_RMSE)
 
+cat("RMSE of Linear Model is ", RMSE_LM, "\n")
+cat("RMSE of CART Model is ", RMSE_CART, "\n")
+cat("RMSE of Random Forest Model is ", RMSE_forest, "\n")
+cat("RMSE of Bagging Model is ", RMSE_Bagging, "\n")
+cat("RMSE of Gradient Boosting is ", RMSE_gbm, "\n")
 ```
 We compare all model's RMSE , and it shows that Bagging model has the lowest rmse, the second best model us Random Forest model.
 
@@ -415,7 +397,7 @@ model_random_forest = randomForest(medianHouseValue ~ .-totalRooms-totalBedrooms
 
 yhat_test_forest = predict(model_random_forest, CAhousing_testing)
 plot(yhat_test_forest, CAhousing_testing$medianHouseValue)
-rmse(model_random_forest, CAhousing_testing)
+cat("RMSE of Random Forest is ", rmse(model_random_forest, CAhousing_testing), "\n")
 plot(model_random_forest)
 
 ```
