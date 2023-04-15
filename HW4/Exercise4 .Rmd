@@ -1,0 +1,222 @@
+---
+title: "Exercise4"
+author: "Jyun-Yu Cheng, Lu Zhang, Haokun Zhang"
+date: "2023/4/15"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+library(tidyverse)
+library(ggplot2)
+library(readr)
+library(modelr)
+```
+
+# Problem1: Clustering and PCA
+The data set in problem 1 contains information on 11 chemical properties of 6500 different bottles of vinho verde wine from northern Portugal. Our task is to choose an unsupervised learning method to distinguish the colors and qualities of wines contained in the data on chemical properties, after running both a clustering algorithm and PCA. It should be noted that before analyzing problems, the color variables are converted to 1 for red and 2 for white.
+
+**Part 1: PCA--Principle Component Analysis**
+
+Before running PCA, the variables should be scaled firstly.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+wine1 <- read.csv("https://raw.githubusercontent.com/jgscott/ECO395M/master/data/wine.csv")
+wine1$color<-ifelse(wine1$color=="red",1,0)
+PCA1=prcomp(wine1-wine1$quality-wine1$color, scale=TRUE)
+plot(PCA1, xlab="Principle Component", main="Figure1A. Variances Explained")
+summary(PCA1)
+```
+
+From this plot and summarized table above, we can learn that the first four principle components can explain about 91.3% variances of data, so 4 principle components are selected to analyze problems convincingly. Then a biplot below shows the scores of the principal components and the positions of the loading vectors, where the specific values of the load vectors are given in the table below.
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+round(PCA1$rotation[,1:4],2)
+wine1=merge(wine1,PCA1$x[,1:4], by="row.names")
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+PCA1$rotation[,1:4]
+biplot(PCA1, scale=0)
+```
+
+From the results in the table and the biplot above, the values of volatile.acidity, density and color are similar in the first principle component and dioxide value is significant in the principle component, so the ability to distinguish the red wines from the white wines is not strong.
+
+**Part 2: A clustering algorithm -- hierarchical clustering**
+
+Hierarchical clustering is selected to do the clustering analysis. Firstly, we should normalize the variables. Then use the single linkage, the complete linkage and the average linkage methods to do hierarchical clustering on the variables respectively, using the Euclidean distance as an indicator of the dissimilarity variables. A significant advantage of the hierarchical clustering method is that it can output a fascinating tree representation about individual observations, i.e., a dendrogram.
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+wine11 <- read.csv("https://raw.githubusercontent.com/jgscott/ECO395M/master/data/wine.csv")
+wine11$color<-ifelse(wine11$color=="red",1,0)
+wine_scaled=scale(wine11, center=TRUE, scale=TRUE)
+wine_distance_matrix=dist(wine_scaled, method="euclidean")
+
+h1 = hclust(wine_distance_matrix, method='single')
+h2 = hclust(wine_distance_matrix, method='complete')
+h3 = hclust(wine_distance_matrix, method='average')
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+plot(h1, cex=0.3, main="Figure1B. Cluster Dendrogram (Single)")
+plot(h2, cex=0.3, main="Figure1C. Cluster Dendrogram (Complete)")
+plot(h3, cex=0.3, main="Figure1D. Cluster Dendrogram (Average)")
+```
+
+From the three dendrograms, it is obvious that using complete linkage to do hierarchical clustering can yield categories of relatively more balanced size. Since the dataset is very large, we set k=10 rather than 4 in PCA before.
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+cluster2 = cutree(h2, k=10)
+summary(factor(cluster2))
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+table(cluster2, wine11$color)
+```
+
+As the simple table shows, it is easy for us to distinguish the color of wines in some clusters. For example, white wines occupy the majority in cluster 4 and 6 while the reds occupy the majority in cluster 2 and 5. Especially, in the last four clusters, it is more obvious to distinguish the colors. 
+
+We then distinguished the quality of wines.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+table(cluster2, wine11$quality)
+```
+
+Comparing to color of wines, it is not very easy to distinguish the higher from the lower quality wines except for the last three clusters by using clustering. However, recalling the biplot in PCA before, the values of quality in PC2 is relatively very large (0.48), so it is easy to distinguish the higher from lower quality wines in PCA.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+biplot(PCA1, scale=0)
+```
+
+
+# Problem 2: Market Segmentation
+
+One purpose of market segmentation is to segment the market by identifying people who are more inclined to accept a particular form of advertising or who are more likely to buy a particular product. The data in this problem was collected in the course of a market-research study using followers of the Twitter account of a large consumer drinks brand called "NutrientH20"(just to have a label). The goal is to analyze this data, and to prepare a short report for NutrientH20 that identifies any interesting market segments that appear to stand out in their social-media audience. We decided to come up with some interesting, well-supported insights about the audience and give the client some insight as to how they might position their brand to maximally appeal to each market segment.
+
+**Part 1: Summaries of dataset**
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+## Now the data of social marketing
+socialmarketing <- read.csv("https://raw.githubusercontent.com/jgscott/ECO395M/master/data/social_marketing.csv", row.names=1)
+summary(socialmarketing)
+```
+
+
+Genarally, the summary of dataset shows that the most popular field is chatter, then some relatively popular fields contain photo-sharing, health-nutrition, cooking, and so on. In contrast, these areas such as business, small business, eco, which are in the business field, are less popular with the public.
+
+
+**Part 2: Method--PCA**
+
+PCA, principle component analysis, is a widely used class of methods in exploratory data analysis.
+
+Before doing PCA, the variables should be centered and scaled. This is what sets PCA apart from other guided and unguided learning techniques.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+## Now the data of social marketing
+PCA2=prcomp(socialmarketing-socialmarketing$uncategorized-socialmarketing$spam-socialmarketing$adult, scale=TRUE)
+pve=PCA2$sdev^2/sum(PCA2$sdev^2)
+plot(pve, type="o", ylab="PVE", xlab="Principal Component", main="Figure2A. PVE (Scree Plot)", col="blue")
+plot(cumsum(pve), type="o", ylab="Cumulative PVE", xlab="Principal Component", main="Figure2B. Cumulative PVE", col="brown")
+summary(PCA2)
+```
+
+The scree plot (PVE) and the cumulative PVE plot can decide the number of principle components that will be needed. It shows that from about 8th to 10th components, the cumulative PVE curve tends to be flat. Also. from the results in the table above, we can learn that the first eight principle components are able to explain about 86.3% variances of data, so 8 principle components can be selected to analyze problems convincingly.
+
+**Part 3: Results**
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+round(PCA2$rotation[,1:8],2)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+PCA2$rotation[,1:8]
+```
+
+In the table above, higher numbers of certain elements represent major characteristics of each market segment. To be specific, the values in the first principle component are similar to each other, so this is not very helpful to decide audiences' appeal to any market segment. More attention is paid to the following principle components below. In the fourth principle components, these audiences might be the group among undergraduates and graduates who are studying in school, because they care about college and university (0.51), online games (0.50), sports (0.16) and TV shows and films (0.09) more over the other elements, which are all concerns for the teenage age group and students. In the fifth principle component, this represents mainly a middle-aged group, since these audiences care much about religion (0.31), parenting (0.26) and sports (0.32). In the sixth principle component, the audiences may be a group of women, who pay much attention to cooking (0.46), fashion (0.34) and beauty (0.26). In the eighth principle component, the audiences may be a group of cultural artists or people who focus on the art field, because they care more about art (0.34), TV shows and films (0.36). So for each segmented principle components of the population, the clients are able to position their brand to maximally appeal to each market segment, by the needs of specific categories of customers.
+
+
+# Problem 3: Association rules for grocery purchases
+
+The data file in this problem is a list of shopping baskets: one person's basket for each row, with multiple items per row separated by commas. The goal is to use the data on grocery purchases and find some interesting association rules for these shopping baskets.
+
+```{r,include=FALSE}
+library(tidyverse)
+library(arules) # has a big ecosystem of packages built around it.
+library(arulesViz)
+library(igraph)
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+groceries = read.csv("https://raw.githubusercontent.com/jgscott/ECO395M/master/data/groceries.txt",header = FALSE)
+groceries$buyer = seq.int(nrow(groceries))
+groceries = cbind(groceries[,5], stack(lapply(groceries[,1:4], as.character)))[1:2]
+colnames(groceries) = c("Customer","Goods")
+groceries = groceries[order(groceries$Customer),]
+groceries = groceries[!(groceries$Goods==""),]
+row.names(groceries) = 1:nrow(groceries)
+groceries$Customer = factor(groceries$Customer)
+groceries_counts = groceries %>%
+  group_by(Goods) %>%
+  summarize(count = n()) %>%
+  arrange(desc(count))
+```
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+head(groceries_counts, 20) %>%
+  ggplot() +
+  geom_col(aes(y=reorder(Goods, count), x=count)) + 
+  labs(y="Goods",x="count")
+```
+
+The graph above shows the top 20 popular goods among our customers in the dataset. We can see that whole milk ranks the most among these top 20 goods. Other vegetables, rolls/buns and soda are also very popular following after whole milk.
+
+
+```{r, include=FALSE,message=FALSE,warning=FALSE}
+# First split data into a list of goods for each customer.
+groceries_list = split(x=groceries$Goods, f=groceries$Customer)
+
+groceries_list = lapply(groceries_list, unique)
+
+groceries_trans = as(groceries_list, "transactions")
+
+# Run the 'apriori' algorithm.
+rules = apriori(groceries_trans, 
+                    parameter=list(support=.005, confidence=.1, maxlen=2))
+inspect(rules)
+inspect(subset(rules, lift > 7))
+inspect(subset(rules, confidence > 0.6))
+inspect(subset(rules, lift > 10 & confidence > 0.05))
+```
+
+In the data pre-processing, we should firstly split data into a list of goods for each customer. After several steps we can run the 'apriori' algorithm. (Look at rules with support>0.01, confidence>0.1 and length <=5)  Then make a plot of all the rules below.
+
+```{r,echo=FALSE,message=FALSE,warning=FALSE}
+plot(rules, measure = c("support", "lift"), shading = "confidence")
+```
+
+The plot shows that there are so many rules here that makes it difficult for us to learn about the association rules well. So, we will look at subsets driven by the plot.
+
+```{r, include=FALSE,message=FALSE,warning=FALSE}
+sub1 = subset(rules, subset=confidence > 0.01 & support > 0.005)
+summary(sub1)
+```
+
+```{r,echo=FALSE,message=FALSE,warning=FALSE}
+plot(head(sub1, 50, by='lift'), method='graph')
+```
+
+By choosing 50 rules for simplicity, this can make sense to some extent. For example, whipped/sour cream, cheese, butter, cream point to yogurt, since they all belong to the milk/dairy products. On the other hand, beef, onions, berries, chicken point to other vegetables. This also looks meaningful to us!
+
+```{r, include=FALSE,message=FALSE,warning=FALSE}
+# export a graph 
+saveAsGraph(sub1, file = "musicrules.graphml")
+```
+
+
+
+
