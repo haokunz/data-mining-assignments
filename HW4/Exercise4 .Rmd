@@ -2,7 +2,7 @@
 title: "Exercise4"
 author: "Jyun-Yu Cheng, Lu Zhang, Haokun Zhang"
 date: "2023/4/15"
-output: pdf_document
+output: md_document
 ---
 
 ```{r setup, include=FALSE}
