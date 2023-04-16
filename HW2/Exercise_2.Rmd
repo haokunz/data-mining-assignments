@@ -1,0 +1,366 @@
+---
+title: "Untitled"
+author: "Jyun-Yu Cheng, Haokun Zhang"
+date: '2023-02-15'
+output: 
+  pdf_document: default
+  md_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Question 1: Saratoga house prices
+```{r,echo=FALSE, message= FALSE, warning=FALSE}
+library(tidyverse)
+library(ggplot2)
+library(modelr)
+library(rsample)
+library(mosaic)
+library(caret)
+library(parallel)
+library(foreach)
+library(lubridate)
+library(dplyr)
+library(knitr)
+data(SaratogaHouses)
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+## build better model
+
+saratoga_split = initial_split(SaratogaHouses, prop = 0.8)
+saratoga_train = training(saratoga_split)
+saratoga_test = testing(saratoga_split)
+
+#try 3 different linear models,then compare
+lm1 = lm(log(price) ~ lotSize + lotSize:age + age + 
+           landValue + bathrooms + sewer, data=saratoga_train)
+lm2 = lm(log(price) ~ lotSize + age + log(landValue) + log(livingArea) + 
+           bedrooms + bathrooms +  bedrooms:bathrooms + 
+           rooms, data=saratoga_train)
+lm3 = lm(log(price) ~  lotSize + age + log(landValue) 
+         + log(livingArea) + log(landValue):log(livingArea) 
+         + bedrooms + bathrooms + rooms
+         + fireplaces:waterfront, data=saratoga_train)
+rmse(lm1, saratoga_test)
+rmse(lm2, saratoga_test)
+rmse(lm3, saratoga_test)   
+```
+## Since lm3 has the least rmse, lm3 is the best model among these above 3 lm models
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+#build the best K-nearest-neighbor regression model for price,using same variables from lm3
+k_folds = 5
+SaratogaHouses_folds = crossv_kfold(SaratogaHouses, k=k_folds)
+
+k_grid = c(2, 4, 6, 8, 10, 15, 20, 25, 30, 35, 40, 45,
+           50, 60, 70, 80, 90, 100, 125, 150, 175, 200, 250, 300)
+cv_SaratogaHouses = foreach(k = k_grid, .combine='rbind') %dopar% {
+  models = map(SaratogaHouses_folds$train, ~ knnreg(log(price) ~ lotSize+age+log(landValue) + log(livingArea) + bedrooms + bathrooms + rooms, k=k, data = ., use.all=FALSE))
+  errs = map2_dbl(models, SaratogaHouses_folds$test, modelr::rmse)
+  c(k=k, err = mean(errs), std_err = sd(errs)/sqrt(k_folds))
+} %>% as.data.frame
+head(cv_SaratogaHouses)
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(cv_SaratogaHouses) + 
+  geom_point(aes(x= k, y= err)) + 
+  geom_errorbar(aes(x=k, ymin = err-std_err, ymax = err+std_err))+
+  geom_line(aes(x= k, y= err))
+```
+## We can get the best k according to the following:
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+k_min_error = cv_SaratogaHouses %>%
+  slice_min(err) %>%
+  pull(k)
+k_min_error
+
+```
+## Then we calculate the best knn method's error
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+#then We calculate the knn20 method RMSE
+knnmodels =map(SaratogaHouses_folds$train, ~ knnreg(log(price) ~ lotSize+age+log(landValue) + log(livingArea) + bedrooms + bathrooms + rooms, k=k_min_error, data = ., use.all=FALSE))
+knnerrs = map2_dbl(knnmodels, SaratogaHouses_folds$test, modelr::rmse)
+knnerrs
+mean(knnerrs)
+```
+
+## then we calculate the best lm model's error 
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+lmmodels = map(SaratogaHouses_folds$train, ~ lm(log(price) ~  lotSize + age + log(landValue) 
+                                              + log(livingArea) + log(landValue):log(livingArea) 
+                                              + bedrooms + bathrooms + rooms
+                                              + fireplaces:waterfront, data = .))
+lmerrs = map2_dbl(lmmodels, SaratogaHouses_folds$test, modelr::rmse)
+lmerrs
+mean(lmerrs)
+
+```
+
+
+## The error from the optimal knn model is 0.3441, larger than that of linear model 3, which is 0.2945. 
+## Thus linear model seems to do better at achieving lower out-of-sample mean-squared error.
+## Therefore as for price-modeling strategies for a local taxing authority, we should pay more attention to the linear model’s prediction to estimate market values for properties.
+
+
+# Question 2: Classification and retrospective sampling
+```{r,echo=FALSE, message= FALSE, warning=FALSE}
+credit=read.csv("../data/german_credit.csv")
+credit_df <- data.frame(credit)
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# Make a bar plot of default probability by credit history
+credit_table <- data.frame((table(credit$Default,
+                                            credit$history,
+                                            dnn=c('Default', 'credit_history'))))
+
+
+
+# filter
+default_prop <- credit%>%group_by(Default, history) %>% summarise(n = n())%>% 
+  group_by(history) %>%mutate(Freq = n/sum(n)) %>% filter(Default == 1)
+
+# make the bar plot
+ggplot(default_prop, aes(x= history, y=Freq))+
+  geom_bar(fill= "#0073C2FF", stat = "identity")+
+  geom_text(aes(label = Freq), vjust=-0.3) +
+  expand_limits(y=c(0,1))+
+  xlab("Credit History") + ylab("Probability of Default") + 
+  labs(title ="Default Probabiltiy by Credit History") 
+```
+
+## After running the regression, a out-of-sample performance is examined.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+#split to test and training
+credit_split = initial_split(credit, 0.8)
+credit_test = testing(credit_split)
+credit_training = training(credit_split)
+#run a predictive logit regression
+logit_credit2 = glm(Default ~ + duration + amount + installment + age + history + purpose + foreign, data = credit_training, family = 'binomial')
+kable(coef(logit_credit2) %>% round(2), 
+      col.names = c('coef'))
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+#check out-of-sample performance
+phat_test_logit_credit2 = predict(logit_credit2, credit_test, type='response')
+yhat_test_logit_credit2 = ifelse(phat_test_logit_credit2 > 0.5, 1, 0)
+confusion_out_logit2 = table(y = credit_test$Default,
+                            yhat=yhat_test_logit_credit2)
+
+kable(confusion_out_logit2)
+```
+## The coefficients for having poor and terrible credit history are negative. They are also statsitically signicifant. Having a poor or terrible credit history multiplies odds of default, which counter-intuitively has negative effect on default. The retrospective, "case-control" method that the bank used to select samples resulted in a substantial oversampling of defaults, relative to a random sample of loans in the bank's overall portfolio. If the purpose of the model is to screen prospective borrowers to classify them into "high" versus "low" probability of default, this data set is not appropriate for building a predictive model.  
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+kable(table(credit$Default),
+      col.names = c("Default Type",
+                    "Sample Size"), caption = "Default Sample Size")
+```
+## To improve the sampling scheme under limited resources to get the data on all subjects in the loans, it requires a method to reduce the oversampling of defaults. Previously, the set of non-defauled loans ("controls") is matched with similar set of defaulted loans, leaving "controls" less independent of the set of defaulted loans, the "controls" are not reprensentative of the source population that produced the default cases either. Selection bias resulted. A better sampling scheme should adhere to fixing these two issues. A random sampling method will give defaulted loans and non-defaulted loans equal chance of being selected, and the "controls" is selected independently from the cases. 
+
+## The second step is to increase the ratio between non-defaulted loan and defaulted loan. Since defaulted loans are rare cases and non-defaulted loans are plentiful, the statistical power of the study can be increased by enrolling more non-defaulted loans than the defaulted. However, ratio more than 4 controls over 1 case adds little impact on power. Therefore, if it is time-consuming or expensive to collect sets of controls, the ratio should not exceed 4:1. Alternatively, if it is not expensive, there is no reason to limit the number of non-defaulted loans. In this case of 300 defaulted loans, the number of non-defaulted loans can be increased from 700 to 1200 or even more. With these two steps, the sampling scheme will be improved.
+
+# Question 3: Children and hotel reservations
+```{r,echo=FALSE, message= FALSE, warning=FALSE}
+library(tidyverse)
+library(ggplot2)
+library(mosaic)
+library(rsample)
+library(parallel)
+library(foreach)
+library(gamlr)
+library(modelr)
+```
+
+
+```{r,echo=FALSE, message= FALSE, warning=FALSE}
+# Goal: Build a predictive model for whether a hotel booking will have children on it 
+# How : Build 3 model : baseline1, baseline2 and the best linear model we can build
+# Compare the out-of-sample performance of 3 models, then choose the best one.
+```
+
+```{r,echo=FALSE, message= FALSE, warning=FALSE}
+## Pre-processing
+# (1) Read the data
+hotels_dev = read.csv("https://raw.githubusercontent.com/jgscott/ECO395M/master/data/hotels_dev.csv")
+hotels_val = read.csv("https://raw.githubusercontent.com/jgscott/ECO395M/master/data/hotels_val.csv")
+hotels_dev = hotels_dev %>% filter(reserved_room_type != "L") 
+# (2) See the data
+head(hotels_dev)
+head(hotels_val)
+ggplot(data = hotels_dev) +
+  geom_histogram(aes(x=children), binwidth=0.1,color = "red" )
+## Because histogram is one-division, we only need to set the x axis
+# (3) Split the data to training/testing set
+hotels_dev_split = initial_split(hotels_dev, prop = 0.7)
+hotels_dev_train = training(hotels_dev_split)
+hotels_dev_test = testing(hotels_dev_split)
+```
+
+```{r,echo=FALSE, message= FALSE, warning=FALSE}
+## Model building
+## (1) Build the Models
+
+### Model1: only uses the market_segment, adults, customer_type, and is_repeated_guest variables as features
+baseline1 = glm(children ~ market_segment + adults + customer_type + is_repeated_guest,
+                     data = hotels_dev_train, family = "binomial")
+### Model2: uses all the possible predictors except the arrival_date variable
+baseline2 = glm(children ~ . - arrival_date , data = hotels_dev_train, family = "binomial")
+```
+
+```{r,echo=FALSE, message= FALSE, warning=FALSE}
+### Model3: build the best model - feature engineering by LASSO 
+# Use LASSO to find main effects + interaction by eyeballing
+hotels_lasso_x_main = model.matrix(children ~  (.-1-arrival_date), data=hotels_dev_train)
+hotels_lasso_x_itac = model.matrix(children ~  (.-1-arrival_date)^2, data=hotels_dev_train)
+hotels_lasso_y = hotels_dev_train$children
+## "$" extract a specific part of a data object
+```
+
+```{r,echo=FALSE, message= FALSE, warning=FALSE}
+hotels_lasso_main = cv.gamlr(hotels_lasso_x_main, hotels_lasso_y, nfold=10, verb=TRUE, family="binomial")
+hotels_lasso_itac = cv.gamlr(hotels_lasso_x_itac, hotels_lasso_y, nfold=10, verb=TRUE, family="binomial")
+#### extract strong single covariates
+coef(hotels_lasso_main, select='min') #// rule out 'deposit_type' by eyeballing
+#### extract strong interactions
+strong_interaction_name = coef(hotels_lasso_itac, select = 'min')@Dimnames[1] %>% as.data.frame() 
+strong_interaction_name = strong_interaction_name[coef(hotels_lasso_itac, select = 'min')@i,] 
+strong_interaction_beta = coef(hotels_lasso_itac, select = 'min')@x[-1]
+coef_lasso = cbind(strong_interaction_name, strong_interaction_beta) %>% # transform matrix to data frame
+  as.data.frame() %>%
+  mutate(abs_beta = abs(as.numeric(strong_interaction_beta))) 
+coef_lasso %>% # filter in strong interaction
+  filter(!(strong_interaction_name %in% colnames(hotels_dev))) %>%
+  arrange(desc(abs_beta)) %>%
+  head(30) 
+#// pick (meal:reserved_room_type, reserved_room_type:assigned_room_type, hotel:reserved_room_type, market_segment:reserved_room_type,
+#// meal:is_repeated_guest, adults:previous_bookings_not_canceled, meal:previous_bookings_not_canceled, market_segment:customer_type,
+#// is_repeated_guest:assigned_room_type, assigned_room_type:required_car_parking_spaces) by eyeballing
+lasso_selected_testversion = glm(children ~ (.-arrival_date-deposit_type) + meal:reserved_room_type+ reserved_room_type:assigned_room_type+
+                           hotel:reserved_room_type+ market_segment:reserved_room_type+meal:is_repeated_guest+ 
+                           adults:previous_bookings_not_canceled+ meal:previous_bookings_not_canceled+ market_segment:customer_type+
+                           is_repeated_guest:assigned_room_type+ assigned_room_type:required_car_parking_spaces, 
+                         data = hotels_dev_train, family = "binomial")
+coef(lasso_selected_testversion) # rule out non-converged covariates & interactions
+lasso_selected = glm(children ~ (.-arrival_date-deposit_type) + hotel:reserved_room_type+ meal:is_repeated_guest+ 
+                       adults:previous_bookings_not_canceled+ meal:previous_bookings_not_canceled+ market_segment:customer_type+
+                       is_repeated_guest:assigned_room_type+ assigned_room_type:required_car_parking_spaces, 
+                     data = hotels_dev_train, family = "binomial")
+```
+
+```{r,echo=FALSE, message= FALSE, warning=FALSE}
+## (2) Out-of-sample performance evaluation: likelihood/deviance/TPR/FPR/FDR
+### baseline evaluation
+#### calculate deviance
+test_child_index = which(hotels_dev_test$children == 1) # find actual booking with children
+phat_baseline1 = predict(baseline1, hotels_dev_test, type = "response") # baseline1
+baseline1_predict_deviance = -2 * sum(log(phat_baseline1[test_child_index]))
+phat_baseline2 = predict(baseline2, hotels_dev_test, type = "response") # baseline2
+baseline2_predict_deviance = -2 * sum(log(phat_baseline2[test_child_index]))
+phat_lasso_selected = predict(lasso_selected, hotels_dev_test, type = "response") # lasso_selected
+lasso_selected_predict_deviance = -2 * sum(log(phat_lasso_selected[test_child_index]))
+```
+
+```{r,echo=FALSE, message= FALSE, warning=FALSE}
+#### confusion matrix + relevant evaluation
+yhat_baseline1 = ifelse(phat_baseline1>0.5, 1, 0)
+yhat_baseline2 = ifelse(phat_baseline2>0.5, 1, 0)
+yhat_lasso_selected = ifelse(phat_lasso_selected>0.5, 1, 0)
+confusion_baseline1 = table(y=hotels_dev_test$children, yhat=yhat_baseline1)
+confusion_baseline1 = cbind(confusion_baseline1, c(0,0))
+confusion_baseline2 = table(y=hotels_dev_test$children, yhat=yhat_baseline2)
+confusion_lasso_selected = table(y=hotels_dev_test$children, yhat=yhat_lasso_selected)
+```
+
+```{r,echo=FALSE, message= FALSE, warning=FALSE}
+## (3) Output: a table of measuring out-of-sample performance
+measurement = c("Deviance", "TPR", "FPR", "FDR")
+eval_baseline1 = c(baseline1_predict_deviance,
+                   confusion_baseline1[2,2]/(confusion_baseline1[2,2]+confusion_baseline1[2,1]),
+                   confusion_baseline1[1,2]/(confusion_baseline1[1,1]+confusion_baseline1[1,2]),
+                   confusion_baseline1[1,2]/(confusion_baseline1[1,2]+confusion_baseline1[2,2])) %>% round(3)
+eval_baseline2 = c(baseline2_predict_deviance,
+                   confusion_baseline2[2,2]/(confusion_baseline2[2,2]+confusion_baseline2[2,1]),
+                   confusion_baseline2[1,2]/(confusion_baseline2[1,1]+confusion_baseline2[1,2]),
+                   confusion_baseline2[1,2]/(confusion_baseline2[1,2]+confusion_baseline2[2,2])) %>% round(3)
+eval_lasso_selected = c(lasso_selected_predict_deviance,
+                        confusion_lasso_selected[2,2]/(confusion_lasso_selected[2,2]+confusion_lasso_selected[2,1]),
+                        confusion_lasso_selected[1,2]/(confusion_lasso_selected[1,1]+confusion_lasso_selected[1,2]),
+                        confusion_lasso_selected[1,2]/(confusion_lasso_selected[1,2]+confusion_lasso_selected[2,2])) %>% round(3)
+rbind(measurement, eval_baseline1, eval_baseline2, eval_lasso_selected)
+## We can see that the lasso model has the smallest deviance, the highest TPR(higher is better)
+## and the lowest FPR & FDR (Both 2 are "lower is better")
+```
+## We can see that the lasso model has the smallest deviance, the highest TPR(higher is better)
+## and the lowest FPR & FDR (Both 2 are "lower is better")
+
+```{r,echo=FALSE, message= FALSE, warning=FALSE}
+# Model Validation: Step 1
+## (1) Preidcition with validation set
+phat_lasso_predict_best = predict(lasso_selected, hotels_val, type = "response")
+## (2) Calculate TPR & FPR vs. t
+t_grid = rep(1:49)/50
+ROC_df = foreach(t = t_grid, .combine='rbind') %dopar% {
+  yhat_best = ifelse(phat_lasso_predict_best > t, 1, 0)
+  confusion_best = table(y=hotels_val$children, yhat=yhat_best)
+  TPR_best = confusion_best[2,2]/(confusion_best[2,2]+confusion_best[2,1]) %>% round(3)
+  FPR_best = confusion_best[1,2]/(confusion_best[1,1]+confusion_best[1,2]) %>% round(3)
+  c(t=t, TPR = TPR_best, FPR = FPR_best)
+} %>% as.data.frame()
+## (3) Plot the graph
+ggplot(ROC_df) +
+  geom_line(aes(x=t, y=TPR, color = "TPR"), size=1) +
+  geom_line(aes(x=t, y=FPR, color = "FPR"), size=1) +
+  labs(y="TPR/FPR", x = "t", color=" ")
+### real ROC Curve (use this)  
+ggplot(ROC_df) +
+  geom_line(aes(x=FPR, y=TPR), size=1) +
+  labs(y="TPR", x = "FPR", color=" ")
+```
+## The ROC curve of our best model
+
+
+```{r,echo=FALSE, message= FALSE, warning=FALSE}
+## Model Validation: Step 2
+# Create 20 folds
+K_folds = 20
+
+hotels_val = hotels_val %>%
+  mutate(fold_id = rep(1:K_folds, length=nrow(hotels_val)) %>% sample)
+
+hotels_val_cv = foreach(fold = 1:K_folds, .combine='rbind') %dopar% {
+  hotels_val_folds_train = filter(hotels_val, fold_id == fold)
+  hotels_val_folds_phat = predict(lasso_selected, hotels_val_folds_train, type = "response")
+  c(y=sum(hotels_val_folds_train$children), E_y=sum(hotels_val_folds_phat)%>%round(0))
+} %>% as.data.frame()
+
+hotels_val_cv = hotels_val_cv %>%
+  arrange(y) %>%
+  mutate(fold_id = rep(1:K_folds))
+```
+
+```{r,echo=FALSE, message= FALSE, warning=FALSE}
+# Compare the expected number of booking with children versus
+# the actual number of booking with children
+ggplot(data = hotels_val_cv) +
+  geom_line(aes(x=fold_id, y=y, color = "Actual number of children"),  size=1) +
+  geom_line(aes(x=fold_id, y=E_y, color = "Predicted number of children"), size=1) +
+  labs(y="Predicted / Actual Children for Each Fold", x = "t", color=" ")+
+  geom_point(aes(x=fold_id, y=y)) +
+  geom_point(aes(x=fold_id, y=E_y))
+```
+## We can see that our model doesn't perform well
+## The prediction isn't accurate. The predict numbers wiggle more than actual number.
+```{r,echo=FALSE, message= FALSE, warning=FALSE}
+
+```
+
+```{r,echo=FALSE, message= FALSE, warning=FALSE}
+
+```
